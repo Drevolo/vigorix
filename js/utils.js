@@ -3,7 +3,8 @@
 export const STORAGE_KEYS = {
   SETTINGS: "vigorix_settings",
   CURRENT: "vigorix_current",
-  HISTORY: "vigorix_history"
+  HISTORY: "vigorix_history",
+  EDITED_EXERCISES: "vigorix_edited_exercises"
 };
 
 export function getTodayISO() {
@@ -48,4 +49,10 @@ export function formatTime(date = new Date()) {
   const h = String(date.getHours()).padStart(2, "0");
   const m = String(date.getMinutes()).padStart(2, "0");
   return `${h}:${m}`;
+}
+
+export function formatSeconds(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }

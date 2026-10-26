@@ -3,114 +3,158 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0f1026">
+  <meta name="theme-color" content="#0a0a0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Vigorix">
   
-  <title>Vigorix - Controle de Treino</title>
+  <title>Vigorix - Treino</title>
   
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
   
-  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/animations.css">
 </head>
-<body>
-  <!-- Header -->
-  <header class="header">
-    <div class="header-content">
-      <div class="logo">Vigorix</div>
-      <div class="header-info">
+<body class="app-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">Vigorix</div>
+      <button class="sidebar-close" id="sidebarClose">
+        <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+      </button>
+    </div>
+    
+    <div class="sidebar-content">
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Treino do Dia</div>
+        <div class="sidebar-info">
+          <div><span id="sidebarDate">--/--/----</span></div>
+          <div><span id="sidebarDay">---</span> • <span id="sidebarTreino">Treino --</span></div>
+          <div style="margin-top: 0.5rem;">Semana: <span id="sidebarSemana">Semana 1</span></div>
+        </div>
+        <div class="week-selector-sidebar">
+          <button class="week-btn-sidebar" data-week="Semana 1">S1</button>
+          <button class="week-btn-sidebar" data-week="Semana 2">S2</button>
+          <button class="week-btn-sidebar" data-week="Semana 3">S3</button>
+          <button class="week-btn-sidebar" data-week="Semana 4+">S4+</button>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">
+          <div class="sidebar-section-title">Exercícios Realizados Hoje</div>
+        </div>
+        <div class="sidebar-history" id="sidebarHistory">
+          <div class="sidebar-empty">Nenhum ainda</div>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <button class="sidebar-btn" id="btnEditExercises">
+          <i data-lucide="edit-3" style="width: 18px; height: 18px;"></i>
+          Editar Exercícios
+        </button>
+        <a href="historico.html" class="sidebar-btn">
+          <i data-lucide="history" style="width: 18px; height: 18px;"></i>
+          Ver Histórico Completo
+        </a>
+      </div>
+    </div>
+  </aside>
+  
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  
+  <!-- Main Content -->
+  <div class="main-content">
+    <header class="header">
+      <div class="header-top">
+        <button class="menu-btn" id="menuBtn">
+          <i data-lucide="menu" style="width: 24px; height: 24px;"></i>
+        </button>
+        <div class="logo">Vigorix</div>
+        <div style="width: 40px;"></div>
+      </div>
+      <div class="header-info-row">
         <div>
           <span id="headerDate">--/--/----</span> • <span id="headerDay">---</span>
         </div>
         <span class="treino-badge" id="headerTreino">Treino --</span>
       </div>
-    </div>
-  </header>
-
-  <!-- Main Container -->
-  <main class="container">
-    <!-- Week Selector -->
-    <section class="week-selector" id="weekSelector">
-      <button class="week-btn" data-week="Semana 1">Semana 1</button>
-      <button class="week-btn" data-week="Semana 2">Semana 2</button>
-      <button class="week-btn" data-week="Semana 3">Semana 3</button>
-      <button class="week-btn" data-week="Semana 4+">Semana 4+</button>
-    </section>
-
-    <!-- Progress Card -->
-    <section class="progress-card">
-      <div class="progress-header">
-        <span>Progresso do Dia</span>
-        <span id="progressText">0/15 exercícios</span>
+      <div class="progress-indicator">
+        <span>Rodada <span id="currentRound">1</span>/<span id="totalRounds">3</span> • Exercício <span id="currentExIndex">1</span>/<span id="totalEx">5</span></span>
       </div>
-      <div class="progress-bar-container">
-        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
-      </div>
-    </section>
+    </header>
 
-    <!-- Rounds Container -->
-    <section class="rounds-container" id="roundsContainer">
-      <!-- Rodadas serão geradas pelo JavaScript -->
-    </section>
+    <main class="main-container">
+      <!-- Exercise Display -->
+      <section class="exercise-display" id="exerciseDisplay">
+        <div class="exercise-info">
+          <div class="exercise-badges">
+            <span class="exercise-badge" id="exerciseFocus">Foco</span>
+            <span class="exercise-badge" id="exerciseMeta">Meta</span>
+          </div>
+          <h1 class="exercise-name-main" id="exerciseName">Nome do Exercício</h1>
+          <p class="exercise-instruction-main" id="exerciseInstruction">Instrução</p>
+        </div>
+      </section>
 
-    <!-- Actions -->
-    <section class="actions">
-      <button class="btn btn-primary" id="btnDescanso">
-        <i data-lucide="timer"></i>
-        Iniciar Descanso
-      </button>
-      <button class="btn btn-success" id="btnFinalizar" disabled>
-        <i data-lucide="check-circle"></i>
-        Finalizar Treino do Dia
-      </button>
-    </section>
-  </main>
+      <!-- Timer Section -->
+      <section class="timer-section">
+        <div class="timer-mode-indicator" id="timerModeIndicator">PRONTO PARA INICIAR</div>
+        <div class="main-timer" id="mainTimer">00:00</div>
+        <div class="timer-label" id="timerLabel">Tempo do Exercício</div>
+      </section>
 
-  <!-- FAB - Histórico -->
-  <a href="historico.html" class="fab" aria-label="Ver histórico">
-    <i data-lucide="history"></i>
-  </a>
+      <!-- Action Buttons -->
+      <section class="action-section">
+        <button class="action-btn action-btn-primary" id="btnStart">
+          <i data-lucide="play" style="width: 24px; height: 24px;"></i>
+          Iniciar Exercício
+        </button>
+        <button class="action-btn action-btn-success" id="btnFinish" style="display: none;">
+          <i data-lucide="check" style="width: 24px; height: 24px;"></i>
+          Finalizar Exercício
+        </button>
+        <button class="action-btn action-btn-warning" id="btnSkipRest" style="display: none;">
+          <i data-lucide="skip-forward" style="width: 24px; height: 24px;"></i>
+          Pular Descanso
+        </button>
+      </section>
+      
+      <section class="completion-section" id="completionSection" style="display: none;">
+        <div class="completion-message">🎉 Treino Concluído!</div>
+        <button class="action-btn action-btn-success" id="btnNewWorkout">
+          <i data-lucide="refresh-cw" style="width: 24px; height: 24px;"></i>
+          Novo Treino
+        </button>
+      </section>
+    </main>
+  </div>
 
-  <!-- Modal Cronômetro -->
-  <div id="timerModal" class="modal">
-    <div class="modal-content">
+  <!-- Edit Exercises Modal -->
+  <div id="editModal" class="modal">
+    <div class="modal-content modal-large">
       <div class="modal-header">
-        <h2 class="modal-title">Cronômetro de Descanso</h2>
-        <button class="modal-close" id="timerClose">&times;</button>
+        <h2 class="modal-title">Editar Exercícios</h2>
+        <button class="modal-close" id="editClose">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="timer-display" id="timerDisplay">01:00</div>
-        
-        <div class="timer-presets">
-          <button class="timer-preset" data-time="30">30 seg</button>
-          <button class="timer-preset" data-time="40">40 seg</button>
-          <button class="timer-preset active" data-time="60">1 min</button>
+        <div class="edit-week-selector">
+          <button class="edit-week-btn active" data-edit-week="Semana 1">Semana 1</button>
+          <button class="edit-week-btn" data-edit-week="Semana 2">Semana 2</button>
+          <button class="edit-week-btn" data-edit-week="Semana 3">Semana 3</button>
+          <button class="edit-week-btn" data-edit-week="Semana 4+">Semana 4+</button>
         </div>
-        
-        <div class="timer-custom">
-          <input type="number" id="customTime" placeholder="Segundos (ex: 45)" min="1" max="300">
-          <button class="btn btn-secondary" id="btnCustomTime" style="width: auto; padding: 0.625rem 1rem;">Aplicar</button>
+        <div id="editExercisesList" class="edit-exercises-list">
+          <!-- Gerado pelo JS -->
         </div>
-        
-        <div class="timer-actions">
-          <button class="btn btn-primary" id="btnTimerStart">
-            <i data-lucide="play"></i>
-            Iniciar
-          </button>
-          <button class="btn btn-secondary" id="btnTimerPause" style="display: none;">
-            <i data-lucide="pause"></i>
-            Pausar
-          </button>
-          <button class="btn btn-secondary" id="btnTimerCancel">
-            <i data-lucide="x"></i>
-            Cancelar
-          </button>
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+          <button class="btn btn-primary" id="btnSaveEdits" style="flex: 1;">Salvar</button>
+          <button class="btn btn-secondary" id="btnCancelEdits" style="flex: 1;">Cancelar</button>
         </div>
       </div>
     </div>

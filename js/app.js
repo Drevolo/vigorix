@@ -1,218 +1,499 @@
-import { TREINO_A, TREINO_B, DIAS_PARA_TREINO, RODADAS, SEMANAS } from './data.js';
-import { getTodayISO, getDayName, storageGet, storageSet, STORAGE_KEYS, generateId, formatTime } from './utils.js';
-import { initTimer } from './timer.js';
+import { TREINO_A, TREINO_B, DIAS_PARA_TREINO, RODADAS } from './data.js';
+import { getTodayISO, getDayName, storageGet, storageSet, STORAGE_KEYS, generateId, formatSeconds } from './utils.js';
 
-let currentState = null;
 let selectedWeek = "Semana 1";
+let workoutPlan = [];
+let currentState = {
+  round: 0, // 0-indexed
+  exerciseIndex: 0,
+  phase: 'ready', // ready, exercising, resting
+  restTime: 0,
+  restDuration: 0,
+  exerciseTimer: 0,
+  exerciseStartTime: null,
+  completedExercises: []
+};
+
+let timers = {
+  exercise: null,
+  rest: null
+};
 
 function init() {
-  // Inicializar configurações
+  // Configurações
   const settings = storageGet(STORAGE_KEYS.SETTINGS, { semana: "Semana 1" });
   selectedWeek = settings.semana;
   
-  // Atualizar botões de semana
-  document.querySelectorAll('.week-btn').forEach(btn => {
-    if (btn.dataset.week === selectedWeek) {
-      btn.classList.add('active');
-    }
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.week-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      selectedWeek = btn.dataset.week;
-      storageSet(STORAGE_KEYS.SETTINGS, { semana: selectedWeek });
-      loadOrCreateCurrentState();
-      render();
-    });
-  });
+  // Setup sidebar
+  setupSidebar();
   
-  // Inicializar cronômetro
-  initTimer();
+  // Setup week selectors
+  setupWeekSelectors();
   
-  // Botão finalizar
-  document.getElementById('btnFinalizar').addEventListener('click', finalizarTreino);
+  // Setup action buttons
+  setupActionButtons();
   
-  // Carregar ou criar estado do dia
-  loadOrCreateCurrentState();
+  // Setup edit modal
+  setupEditModal();
+  
+  // Build workout
+  buildWorkoutPlan();
+  
+  // Load state or start fresh
+  loadCurrentSession();
+  
+  // Render
   render();
-}
-
-function loadOrCreateCurrentState() {
-  const today = getTodayISO();
-  const saved = storageGet(STORAGE_KEYS.CURRENT, null);
-  
-  if (saved && saved.data === today) {
-    currentState = saved;
-    return;
-  }
-  
-  // Criar novo estado para hoje
-  const diaSemana = getDayName(new Date());
-  const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
-  const treinos = tipoTreino === "A" ? TREINO_A : TREINO_B;
-  
-  const rodadas = [];
-  for (let r = 1; r <= RODADAS; r++) {
-    const exercicios = treinos.map(ex => ({
-      id: `${ex.id}_r${r}`,
-      exercicioId: ex.id,
-      nome: ex.nome,
-      foco: ex.foco,
-      instrucao: ex.instrucao,
-      meta: ex.meta[selectedWeek],
-      feito: false
-    }));
-    rodadas.push({ numero: r, exercicios });
-  }
-  
-  currentState = {
-    data: today,
-    diaSemana,
-    treino: tipoTreino,
-    semana: selectedWeek,
-    rodadas,
-    iniciadoEm: Date.now()
-  };
-  
-  storageSet(STORAGE_KEYS.CURRENT, currentState);
-}
-
-function render() {
-  const today = getTodayISO();
-  const diaSemana = getDayName(new Date());
-  const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
-  
-  // Header
-  document.getElementById('headerDate').textContent = new Date().toLocaleDateString('pt-BR');
-  document.getElementById('headerDay').textContent = diaSemana;
-  document.getElementById('headerTreino').textContent = `Treino ${tipoTreino}`;
-  
-  // Atualizar semana selecionada nos dados se mudou
-  if (currentState.semana !== selectedWeek) {
-    currentState.semana = selectedWeek;
-    // Atualizar metas
-    const treinos = tipoTreino === "A" ? TREINO_A : TREINO_B;
-    currentState.rodadas.forEach(rodada => {
-      rodada.exercicios.forEach(ex => {
-        const treinoEx = treinos.find(t => t.id === ex.exercicioId);
-        if (treinoEx) {
-          ex.meta = treinoEx.meta[selectedWeek];
-        }
-      });
-    });
-    storageSet(STORAGE_KEYS.CURRENT, currentState);
-  }
-  
-  // Renderizar rodadas
-  const container = document.getElementById('roundsContainer');
-  container.innerHTML = '';
-  
-  currentState.rodadas.forEach(rodada => {
-    const todosFeitos = rodada.exercicios.every(ex => ex.feito);
-    const feitosCount = rodada.exercicios.filter(ex => ex.feito).length;
-    
-    const roundCard = document.createElement('div');
-    roundCard.className = 'round-card';
-    roundCard.innerHTML = `
-      <div class="round-header">
-        <div class="round-title">Rodada ${rodada.numero}</div>
-        <div class="round-status ${todosFeitos ? 'complete' : ''}">
-          ${feitosCount}/${rodada.exercicios.length} ${todosFeitos ? '✓ Completa' : ''}
-        </div>
-      </div>
-      <div class="exercises-list">
-        ${rodada.exercicios.map(ex => `
-          <div class="exercise-item ${ex.feito ? 'done' : ''}" data-ex-id="${ex.id}">
-            <input type="checkbox" class="exercise-checkbox" ${ex.feito ? 'checked' : ''} data-ex-id="${ex.id}">
-            <div class="exercise-content">
-              <div class="exercise-name">${ex.nome}</div>
-              <div class="exercise-meta">
-                <span class="exercise-focus">${ex.foco}</span>
-                <span>• ${ex.meta}</span>
-              </div>
-              <div class="exercise-instruction">${ex.instrucao}</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-    container.appendChild(roundCard);
-  });
-  
-  // Event listeners para checkboxes
-  document.querySelectorAll('.exercise-checkbox').forEach(cb => {
-    cb.addEventListener('change', (e) => {
-      const exId = e.target.dataset.exId;
-      let found = false;
-      for (let r of currentState.rodadas) {
-        for (let ex of r.exercicios) {
-          if (ex.id === exId) {
-            ex.feito = e.target.checked;
-            found = true;
-            break;
-          }
-        }
-        if (found) break;
-      }
-      storageSet(STORAGE_KEYS.CURRENT, currentState);
-      render();
-    });
-  });
-  
-  // Progresso
-  let totalExercicios = 0;
-  let totalFeitos = 0;
-  currentState.rodadas.forEach(r => {
-    totalExercicios += r.exercicios.length;
-    totalFeitos += r.exercicios.filter(ex => ex.feito).length;
-  });
-  
-  const percent = totalExercicios === 0 ? 0 : (totalFeitos / totalExercicios) * 100;
-  document.getElementById('progressText').textContent = `${totalFeitos}/${totalExercicios} exercícios`;
-  document.getElementById('progressBar').style.width = percent + '%';
-  
-  // Botão finalizar
-  const btnFinalizar = document.getElementById('btnFinalizar');
-  if (totalFeitos === totalExercicios && totalExercicios > 0) {
-    btnFinalizar.disabled = false;
-  } else {
-    btnFinalizar.disabled = true;
-  }
   
   lucide.createIcons();
 }
 
-function finalizarTreino() {
-  const history = storageGet(STORAGE_KEYS.HISTORY, []);
+function setupSidebar() {
+  const menuBtn = document.getElementById('menuBtn');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarClose = document.getElementById('sidebarClose');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
   
-  let totalExercicios = 0;
-  let totalFeitos = 0;
-  currentState.rodadas.forEach(r => {
-    totalExercicios += r.exercicios.length;
-    totalFeitos += r.exercicios.filter(ex => ex.feito).length;
+  menuBtn.addEventListener('click', () => {
+    sidebar.classList.add('active');
+    sidebarOverlay.classList.add('active');
   });
+  
+  sidebarClose.addEventListener('click', () => {
+    sidebar.classList.remove('active');
+    sidebarOverlay.classList.remove('active');
+  });
+  
+  sidebarOverlay.addEventListener('click', () => {
+    sidebar.classList.remove('active');
+    sidebarOverlay.classList.remove('active');
+  });
+  
+  // Header info in sidebar
+  document.getElementById('sidebarDate').textContent = new Date().toLocaleDateString('pt-BR');
+  document.getElementById('sidebarDay').textContent = getDayName(new Date());
+  const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
+  document.getElementById('sidebarTreino').textContent = `Treino ${tipoTreino}`;
+  document.getElementById('sidebarSemana').textContent = selectedWeek;
+}
+
+function setupWeekSelectors() {
+  // Main header area doesn't have week selector anymore, but sidebar does
+  document.querySelectorAll('.week-btn-sidebar').forEach(btn => {
+    if (btn.dataset.week === selectedWeek) {
+      btn.classList.add('active');
+    }
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.week-btn-sidebar').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedWeek = btn.dataset.week;
+      document.getElementById('sidebarSemana').textContent = selectedWeek;
+      storageSet(STORAGE_KEYS.SETTINGS, { semana: selectedWeek });
+      buildWorkoutPlan();
+      loadCurrentSession();
+      render();
+    });
+  });
+}
+
+function setupActionButtons() {
+  document.getElementById('btnStart').addEventListener('click', startExercise);
+  document.getElementById('btnFinish').addEventListener('click', finishExercise);
+  document.getElementById('btnSkipRest').addEventListener('click', skipRest);
+  document.getElementById('btnNewWorkout').addEventListener('click', newWorkout);
+}
+
+function setupEditModal() {
+  const btnEdit = document.getElementById('btnEditExercises');
+  const editModal = document.getElementById('editModal');
+  const editClose = document.getElementById('editClose');
+  const btnCancel = document.getElementById('btnCancelEdits');
+  const btnSave = document.getElementById('btnSaveEdits');
+  
+  btnEdit.addEventListener('click', () => {
+    openEditModal();
+    editModal.classList.add('active');
+  });
+  
+  editClose.addEventListener('click', () => {
+    editModal.classList.remove('active');
+  });
+  
+  btnCancel.addEventListener('click', () => {
+    editModal.classList.remove('active');
+  });
+  
+  editModal.addEventListener('click', (e) => {
+    if (e.target === editModal) {
+      editModal.classList.remove('active');
+    }
+  });
+  
+  btnSave.addEventListener('click', saveEdits);
+  
+  document.querySelectorAll('.edit-week-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.edit-week-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderEditExercises(btn.dataset.editWeek);
+    });
+  });
+}
+
+function buildWorkoutPlan() {
+  const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
+  const treinosBase = tipoTreino === "A" ? TREINO_A : TREINO_B;
+  const edited = storageGet(STORAGE_KEYS.EDITED_EXERCISES, {});
+  
+  workoutPlan = [];
+  for (let r = 0; r < RODADAS; r++) {
+    const roundExercises = [];
+    treinosBase.forEach((ex, idx) => {
+      const key = `${tipoTreino}_${ex.id}_${selectedWeek}`;
+      const editedEx = edited[key] || {};
+      roundExercises.push({
+        round: r + 1,
+        index: idx,
+        id: ex.id,
+        nome: editedEx.nome || ex.nome,
+        foco: editedEx.foco || ex.foco,
+        instrucao: editedEx.instrucao || ex.instrucao,
+        meta: editedEx.meta || ex.meta[selectedWeek],
+        original: ex
+      });
+    });
+    workoutPlan.push(roundExercises);
+  }
+}
+
+function loadCurrentSession() {
+  const today = getTodayISO();
+  const saved = storageGet(STORAGE_KEYS.CURRENT, null);
+  
+  if (saved && saved.date === today) {
+    currentState = saved;
+    // Rebuild plan in case week changed
+    buildWorkoutPlan();
+    return;
+  }
+  
+  // New session
+  currentState = {
+    date: today,
+    round: 0,
+    exerciseIndex: 0,
+    phase: 'ready',
+    restTime: 0,
+    restDuration: 0,
+    exerciseTimer: 0,
+    exerciseStartTime: null,
+    completedExercises: []
+  };
+  saveCurrentSession();
+}
+
+function saveCurrentSession() {
+  storageSet(STORAGE_KEYS.CURRENT, currentState);
+}
+
+function render() {
+  // Header
+  document.getElementById('headerDate').textContent = new Date().toLocaleDateString('pt-BR');
+  document.getElementById('headerDay').textContent = getDayName(new Date());
+  const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
+  document.getElementById('headerTreino').textContent = `Treino ${tipoTreino}`;
+  
+  // Progress indicator
+  document.getElementById('currentRound').textContent = currentState.round + 1;
+  document.getElementById('totalRounds').textContent = RODADAS;
+  document.getElementById('currentExIndex').textContent = currentState.exerciseIndex + 1;
+  document.getElementById('totalEx').textContent = workoutPlan[0] ? workoutPlan[0].length : 5;
+  
+  // Check if completed
+  if (currentState.phase === 'completed') {
+    document.getElementById('exerciseDisplay').style.display = 'none';
+    document.querySelector('.timer-section').style.display = 'none';
+    document.querySelector('.action-section').style.display = 'none';
+    document.getElementById('completionSection').style.display = 'flex';
+    renderSidebarHistory();
+    lucide.createIcons();
+    return;
+  }
+  
+  document.getElementById('exerciseDisplay').style.display = 'block';
+  document.querySelector('.timer-section').style.display = 'flex';
+  document.querySelector('.action-section').style.display = 'flex';
+  document.getElementById('completionSection').style.display = 'none';
+  
+  // Get current exercise
+  const currentEx = workoutPlan[currentState.round] ? workoutPlan[currentState.round][currentState.exerciseIndex] : null;
+  
+  if (!currentEx) {
+    // Move to next round
+    if (currentState.round < RODADAS - 1) {
+      currentState.round++;
+      currentState.exerciseIndex = 0;
+      startRest(60);
+      return;
+    } else {
+      completeWorkout();
+      return;
+    }
+  }
+  
+  // Display exercise
+  document.getElementById('exerciseName').textContent = currentEx.nome;
+  document.getElementById('exerciseFocus').textContent = currentEx.foco;
+  document.getElementById('exerciseMeta').textContent = currentEx.meta;
+  document.getElementById('exerciseInstruction').textContent = currentEx.instrucao;
+  
+  // Timer display
+  if (currentState.phase === 'resting') {
+    document.getElementById('timerModeIndicator').textContent = 'DESCANSO';
+    document.getElementById('timerLabel').textContent = currentState.restDuration === 60 ? 'Descanso entre Rodadas' : 'Descanso entre Exercícios';
+    document.getElementById('mainTimer').textContent = formatSeconds(currentState.restTime);
+    document.getElementById('btnStart').style.display = 'none';
+    document.getElementById('btnFinish').style.display = 'none';
+    document.getElementById('btnSkipRest').style.display = 'flex';
+  } else if (currentState.phase === 'exercising') {
+    document.getElementById('timerModeIndicator').textContent = 'FAZENDO EXERCÍCIO';
+    document.getElementById('timerLabel').textContent = 'Tempo decorrido';
+    document.getElementById('mainTimer').textContent = formatSeconds(currentState.exerciseTimer);
+    document.getElementById('btnStart').style.display = 'none';
+    document.getElementById('btnFinish').style.display = 'flex';
+    document.getElementById('btnSkipRest').style.display = 'none';
+  } else {
+    document.getElementById('timerModeIndicator').textContent = 'PRONTO PARA INICIAR';
+    document.getElementById('timerLabel').textContent = 'Clique em Iniciar';
+    document.getElementById('mainTimer').textContent = '00:00';
+    document.getElementById('btnStart').style.display = 'flex';
+    document.getElementById('btnFinish').style.display = 'none';
+    document.getElementById('btnSkipRest').style.display = 'none';
+  }
+  
+  renderSidebarHistory();
+  lucide.createIcons();
+}
+
+function startExercise() {
+  currentState.phase = 'exercising';
+  currentState.exerciseTimer = 0;
+  currentState.exerciseStartTime = Date.now();
+  
+  if (timers.exercise) clearInterval(timers.exercise);
+  timers.exercise = setInterval(() => {
+    currentState.exerciseTimer++;
+    document.getElementById('mainTimer').textContent = formatSeconds(currentState.exerciseTimer);
+    saveCurrentSession();
+  }, 1000);
+  
+  saveCurrentSession();
+  render();
+}
+
+function finishExercise() {
+  if (timers.exercise) {
+    clearInterval(timers.exercise);
+    timers.exercise = null;
+  }
+  
+  const currentEx = workoutPlan[currentState.round][currentState.exerciseIndex];
+  currentState.completedExercises.push({
+    round: currentState.round + 1,
+    exerciseIndex: currentState.exerciseIndex,
+    nome: currentEx.nome,
+    meta: currentEx.meta,
+    time: currentState.exerciseTimer,
+    completedAt: Date.now()
+  });
+  
+  saveCurrentSession();
+  
+  // Check if last exercise of round
+  const isLastExerciseOfRound = currentState.exerciseIndex === workoutPlan[currentState.round].length - 1;
+  const isLastRound = currentState.round === RODADAS - 1;
+  
+  if (isLastExerciseOfRound && isLastRound) {
+    // Last exercise of entire workout
+    completeWorkout();
+    return;
+  } else if (isLastExerciseOfRound) {
+    // End of round, rest 60s
+    currentState.exerciseIndex = 0;
+    currentState.round++;
+    startRest(60);
+  } else {
+    // Next exercise, rest 30-40s
+    currentState.exerciseIndex++;
+    startRest(35); // average of 30-40
+  }
+}
+
+function startRest(duration) {
+  currentState.phase = 'resting';
+  currentState.restDuration = duration;
+  currentState.restTime = duration;
+  
+  if (timers.rest) clearInterval(timers.rest);
+  timers.rest = setInterval(() => {
+    currentState.restTime--;
+    document.getElementById('mainTimer').textContent = formatSeconds(currentState.restTime);
+    
+    if (currentState.restTime <= 0) {
+      clearInterval(timers.rest);
+      timers.rest = null;
+      nextExercise();
+    }
+    saveCurrentSession();
+  }, 1000);
+  
+  saveCurrentSession();
+  render();
+}
+
+function skipRest() {
+  if (timers.rest) {
+    clearInterval(timers.rest);
+    timers.rest = null;
+  }
+  nextExercise();
+}
+
+function nextExercise() {
+  currentState.phase = 'ready';
+  saveCurrentSession();
+  render();
+}
+
+function completeWorkout() {
+  if (timers.exercise) {
+    clearInterval(timers.exercise);
+    timers.exercise = null;
+  }
+  if (timers.rest) {
+    clearInterval(timers.rest);
+    timers.rest = null;
+  }
+  
+  const history = storageGet(STORAGE_KEYS.HISTORY, []);
+  const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
   
   const registro = {
     id: generateId(),
-    data: currentState.data,
-    diaSemana: currentState.diaSemana,
-    treino: currentState.treino,
-    semana: currentState.semana,
-    rodadasCompletas: RODADAS,
-    totalExercicios,
-    concluidos: totalFeitos,
-    iniciadoEm: currentState.iniciadoEm,
-    finalizadoEm: Date.now(),
-    detalhes: JSON.parse(JSON.stringify(currentState.rodadas))
+    data: currentState.date,
+    diaSemana: getDayName(new Date()),
+    treino: tipoTreino,
+    semana: selectedWeek,
+    completedAt: Date.now(),
+    exercises: currentState.completedExercises
   };
   
   history.unshift(registro);
   storageSet(STORAGE_KEYS.HISTORY, history);
   
-  // Criar novo estado para amanhã (mas manter no current até trocar de dia)
-  alert('Treino finalizado com sucesso! 🎉');
-  // Resetar para não mostrar finalizar novamente até próximo dia
-  document.getElementById('btnFinalizar').disabled = true;
-  document.getElementById('btnFinalizar').innerHTML = '<i data-lucide="check"></i> Treino Finalizado';
+  currentState.phase = 'completed';
+  saveCurrentSession();
+  render();
+}
+
+function newWorkout() {
+  currentState = {
+    date: getTodayISO(),
+    round: 0,
+    exerciseIndex: 0,
+    phase: 'ready',
+    restTime: 0,
+    restDuration: 0,
+    exerciseTimer: 0,
+    exerciseStartTime: null,
+    completedExercises: []
+  };
+  saveCurrentSession();
+  render();
+}
+
+function renderSidebarHistory() {
+  const sidebarHistory = document.getElementById('sidebarHistory');
+  sidebarHistory.innerHTML = '';
+  
+  if (currentState.completedExercises.length === 0) {
+    sidebarHistory.innerHTML = '<div class="sidebar-empty">Nenhum ainda</div>';
+    return;
+  }
+  
+  currentState.completedExercises.slice().reverse().forEach(ex => {
+    const item = document.createElement('div');
+    item.className = 'sidebar-history-item';
+    item.innerHTML = `
+      <div class="sidebar-history-name">${ex.nome}</div>
+      <div class="sidebar-history-meta">R${ex.round} • ${formatSeconds(ex.time)} • ${ex.meta}</div>
+    `;
+    sidebarHistory.appendChild(item);
+  });
+}
+
+function openEditModal() {
+  const activeWeekBtn = document.querySelector('.edit-week-btn.active');
+  const week = activeWeekBtn ? activeWeekBtn.dataset.editWeek : 'Semana 1';
+  renderEditExercises(week);
+}
+
+function renderEditExercises(week) {
+  const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
+  const treinosBase = tipoTreino === "A" ? TREINO_A : TREINO_B;
+  const edited = storageGet(STORAGE_KEYS.EDITED_EXERCISES, {});
+  const container = document.getElementById('editExercisesList');
+  
+  container.innerHTML = '';
+  
+  treinosBase.forEach(ex => {
+    const key = `${tipoTreino}_${ex.id}_${week}`;
+    const editedEx = edited[key] || {};
+    
+    const item = document.createElement('div');
+    item.className = 'edit-exercise-item';
+    item.innerHTML = `
+      <div class="edit-exercise-header">
+        <div class="edit-exercise-name">${ex.nome}</div>
+      </div>
+      <div class="edit-input-group">
+        <label class="edit-label">Nome</label>
+        <input type="text" class="edit-input" data-key="${key}" data-field="nome" value="${editedEx.nome || ex.nome}">
+      </div>
+      <div class="edit-input-group">
+        <label class="edit-label">Meta/Reps</label>
+        <input type="text" class="edit-input" data-key="${key}" data-field="meta" value="${editedEx.meta || ex.meta[week]}">
+      </div>
+      <div class="edit-input-group">
+        <label class="edit-label">Foco</label>
+        <input type="text" class="edit-input" data-key="${key}" data-field="foco" value="${editedEx.foco || ex.foco}">
+      </div>
+      <div class="edit-input-group">
+        <label class="edit-label">Instrução</label>
+        <textarea class="edit-textarea" data-key="${key}" data-field="instrucao">${editedEx.instrucao || ex.instrucao}</textarea>
+      </div>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function saveEdits() {
+  const edited = storageGet(STORAGE_KEYS.EDITED_EXERCISES, {});
+  const inputs = document.querySelectorAll('#editExercisesList .edit-input, #editExercisesList .edit-textarea');
+  
+  inputs.forEach(input => {
+    const key = input.dataset.key;
+    const field = input.dataset.field;
+    if (!edited[key]) edited[key] = {};
+    edited[key][field] = input.value;
+  });
+  
+  storageSet(STORAGE_KEYS.EDITED_EXERCISES, edited);
+  document.getElementById('editModal').classList.remove('active');
+  
+  buildWorkoutPlan();
+  render();
+  alert('Exercícios atualizados!');
 }
 
 document.addEventListener('DOMContentLoaded', init);
