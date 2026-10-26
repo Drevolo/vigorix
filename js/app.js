@@ -36,6 +36,9 @@ function init() {
   // Setup edit modal
   setupEditModal();
   
+  // Setup reset
+  document.getElementById('btnResetWorkout').addEventListener('click', resetCurrentWorkout);
+  
   // Build workout
   buildWorkoutPlan();
   
@@ -410,6 +413,35 @@ function newWorkout() {
   };
   saveCurrentSession();
   render();
+}
+
+function resetCurrentWorkout() {
+  if (confirm('Tem certeza que deseja resetar o treino do dia? Isso irá apagar o progresso atual.')) {
+    if (timers.exercise) {
+      clearInterval(timers.exercise);
+      timers.exercise = null;
+    }
+    if (timers.rest) {
+      clearInterval(timers.rest);
+      timers.rest = null;
+    }
+    currentState = {
+      date: getTodayISO(),
+      round: 0,
+      exerciseIndex: 0,
+      phase: 'ready',
+      restTime: 0,
+      restDuration: 0,
+      exerciseTimer: 0,
+      exerciseStartTime: null,
+      completedExercises: []
+    };
+    saveCurrentSession();
+    render();
+    // Close sidebar on mobile
+    document.getElementById('sidebar').classList.remove('active');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+  }
 }
 
 function renderSidebarHistory() {
