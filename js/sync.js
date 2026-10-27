@@ -33,7 +33,6 @@ export async function syncNow(silent = false) {
   else setStatus('Sincronizando...');
 
   try {
-    // 1) PULL: trazer do banco e mesclar com local (prioriza mais recente por updated)
     const remote = await listMyStore();
     const remoteMap = new Map();
     for (const item of remote) {
@@ -50,17 +49,8 @@ export async function syncNow(silent = false) {
         storageSet(key, rem.data);
         continue;
       }
-
-      if (rem && local) {
-        // Se tiver updated no remote, comparar por updated
-        const rUpdated = rem.updated ? new Date(rem.updated).getTime() : 0;
-        // Não temos updated local, mas pra esse caso simples vamos priorizar remoto em pull inicial se mais "novo"? 
-        // Mantém local-first: só puxa se não tiver local. Já cobre caso troque de aparelho.
-        continue;
-      }
     }
 
-    // 2) PUSH: enviar tudo que tem local
     for (const key of SYNC_KEYS) {
       const local = storageGet(key, null);
       if (local !== null && local !== undefined) {
@@ -92,7 +82,6 @@ export async function syncOnExerciseFinish() {
     if (localCurrent !== null) {
       await upsertStoreRecord(STORAGE_KEYS.CURRENT, localCurrent);
     }
-    // Também garante que history/settings/edited fiquem atualizados caso tenham mudado
     for (const key of [STORAGE_KEYS.HISTORY, STORAGE_KEYS.SETTINGS, STORAGE_KEYS.EDITED_EXERCISES]) {
       const local = storageGet(key, null);
       if (local !== null) {

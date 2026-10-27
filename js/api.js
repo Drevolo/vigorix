@@ -1,67 +1,52 @@
-import { PB_URL } from './pb-config.js';
-import { getToken, getUser } from './auth.js';
-
-function authHeaders() {
-  const token = getToken();
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = token;
-  return headers;
-}
+import { supabase } from './supabase-client.js';
+import { getUser } from './auth.js';
 
 export async function listMyStore() {
   const user = getUser();
   if (!user) return [];
 
-  const filter = encodeURIComponent(`user = "${user.id}"`);
-  const res = await fetch(`${PB_URL}/api/collections/vigorix_store/records?filter=${filter}&sort=-updated`, {
-    headers: authHeaders()
-  });
+  const { data, error } = await supabase
+    .from('vigorix_store')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('updated_at', { ascending: false });
 
-  if (!res.ok) throw new Error('Erro ao buscar dados');
-  const data = await res.json();
-  return data.items || [];
+  if (error) throw new Error(error.message || 'Erro ao buscar dados');
+  return data || [];
 }
 
 export async function getStoreRecord(key) {
   const user = getUser();
   if (!user) return null;
 
-  const filter = encodeURIComponent(`user = "${user.id}" && key = "${key}"`);
-  const res = await fetch(`${PB_URL}/api/collections/vigorix_store/records?filter=${filter}&perPage=1`, {
-    headers: authHeaders()
-  });
+  const { data, error } = await supabase
+    .from('vigorix_store')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('key', key)
+    .maybeSingle();
 
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.items?.[0] || null;
+  if (error) return null;
+  return data || null;
 }
 
 export async function upsertStoreRecord(key, dataObj) {
   const user = getUser();
   if (!user) throw new Error('Não logado');
 
-  const existing = await getStoreRecord(key);
+  const payload = {
+    user_id: user.id,
+    key: key,
+    data: dataObj,
+    updated_at: new Date().toISOString()
+  };
 
-  if (existing) {
-    const res = await fetch(`${PB_URL}/api/collections/vigorix_store/records/${existing.id}`, {
-      method: 'PATCH',
-      headers: authHeaders(),
-      body: JSON.stringify({ data: dataObj })
-    });
-    if (!res.ok) throw new Error('Erro ao atualizar registro');
-    return await res.json();
-  }
+  const { data, error } = await supabase
+    .from('vigorix_store')
+    .upsert(payload, { onConflict: 'user_id,key' })
+    .select()
+    .single();
 
-  const res = await fetch(`${PB_URL}/api/collections/vigorix_store/records`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({
-      user: user.id,
-      key: key,
-      data: dataObj
-    })
-  });
-
-  if (!res.ok) throw new Error('Erro ao criar registro');
-  return await res.json();
+  if (error) throw new Error(error.message || 'Erro ao salvar no banco');
+  return data;
 }

@@ -85,6 +85,9 @@
       justify-content: center;
       gap: 0.5rem;
     }
+    .login-btn:disabled {
+      opacity: 0.6;
+    }
     .login-error {
       text-align: center;
       color: var(--danger);
@@ -98,16 +101,16 @@
     <div class="login-card">
       <div class="login-header">
         <div class="login-logo">Vigorix</div>
-        <p class="login-subtitle">Acesse para sincronizar seu treino na nuvem</p>
+        <p class="login-subtitle">Acesse com seu e-mail e senha</p>
       </div>
       <form class="login-form" id="loginForm">
         <div class="login-field">
           <label class="login-label" for="email">E-mail</label>
-          <input class="login-input" id="email" type="email" autocomplete="username" placeholder="voce@vigorix.app" required>
+          <input class="login-input" id="email" type="email" autocomplete="username" required>
         </div>
         <div class="login-field">
           <label class="login-label" for="password">Senha</label>
-          <input class="login-input" id="password" type="password" autocomplete="current-password" placeholder="Digite sua senha" required>
+          <input class="login-input" id="password" type="password" autocomplete="current-password" required>
         </div>
         <div class="login-error" id="loginError"></div>
         <button class="login-btn" type="submit">
@@ -118,10 +121,11 @@
   </div>
 
   <script type="module">
-    import { isLoggedIn, login } from './js/auth.js';
+    import { getSession, login } from './js/auth.js';
     import { syncNow } from './js/sync.js';
 
-    if (isLoggedIn()) {
+    const session = await getSession();
+    if (session) {
       window.location.href = 'index.html';
     }
 
@@ -138,7 +142,7 @@
       btn.textContent = 'Entrando...';
 
       try {
-        await login(email.value.trim(), password.value);
+        await login(email.value, password.value);
         await syncNow(true);
         window.location.href = 'index.html';
       } catch (err) {

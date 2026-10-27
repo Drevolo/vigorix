@@ -1,14 +1,9 @@
-import { PB_URL } from './pb-config.js';
+import { supabase } from './supabase-client.js';
 
-const TOKEN_KEY = 'vigorix_pb_token';
-const USER_KEY = 'vigorix_pb_user';
+const USER_KEY = 'vigorix_sb_user';
 
 export function isLoggedIn() {
-  return !!localStorage.getItem(TOKEN_KEY);
-}
-
-export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return !!localStorage.getItem('vigorix_sb_session');
 }
 
 export function getUser() {
@@ -20,35 +15,46 @@ export function getUser() {
   }
 }
 
+export async function getSession() {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) {
+    localStorage.setItem('vigorix_sb_session', '1');
+    if (data.session.user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(data.session.user));
+    }
+    return data.session;
+  }
+  localStorage.removeItem('vigorix_sb_session');
+  localStorage.removeItem(USER_KEY);
+  return null;
+}
+
 export async function login(email, password) {
-  const res = await fetch(`${PB_URL}/api/collections/users/auth-with-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      identity: email,
-      password: password
-    })
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password: password
   });
 
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data?.message || 'Falha no login');
+  if (error) throw new Error(error.message || 'Falha no login');
+  if (data.session) {
+    localStorage.setItem('vigorix_sb_session', '1');
+    if (data.user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    }
   }
-
-  localStorage.setItem(TOKEN_KEY, data.token);
-  localStorage.setItem(USER_KEY, JSON.stringify(data.record));
   return data;
 }
 
-export function logout() {
-  localStorage.removeItem(TOKEN_KEY);
+export async function logout() {
+  await supabase.auth.signOut();
+  localStorage.removeItem('vigorix_sb_session');
   localStorage.removeItem(USER_KEY);
   window.location.href = 'login.html';
 }
 
-export function requireAuth() {
-  if (!isLoggedIn()) {
+export async function requireAuth() {
+  const session = await getSession();
+  if (!session) {
     window.location.href = 'login.html';
     return false;
   }

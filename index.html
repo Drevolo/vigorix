@@ -182,9 +182,8 @@
   </div>
 
   <script type="module">
-    import { requireAuth } from './js/auth.js';
+    import { requireAuth, logout } from './js/auth.js';
     import { syncNow } from './js/sync.js';
-    import { logout } from './js/auth.js';
 
     requireAuth();
     syncNow(true);

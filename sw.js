@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vigorix-v2';
+const CACHE_NAME = 'vigorix-v3';
 const urlsToCache = [
   './',
   './index.html',
@@ -12,7 +12,8 @@ const urlsToCache = [
   './js/app.js',
   './js/timer.js',
   './js/history.js',
-  './js/pb-config.js',
+  './js/supabase-config.js',
+  './js/supabase-client.js',
   './js/auth.js',
   './js/api.js',
   './js/sync.js'
