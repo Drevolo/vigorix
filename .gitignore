@@ -1,0 +1,29 @@
+# Arquivos de planejamento/documentação não essenciais ao app
+PLANO_VIGORIX.md
+"Plano de Treino Semanal e Metas.xlsx"
+
+# Arquivos do sistema
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Node (caso adicione no futuro)
+node_modules/
+
+# Arquivos temporários
+*.tmp
+*.temp
+*.bak
