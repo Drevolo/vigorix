@@ -1,8 +1,9 @@
-const CACHE_NAME = 'vigorix-v1';
+const CACHE_NAME = 'vigorix-v2';
 const urlsToCache = [
   './',
   './index.html',
   './historico.html',
+  './login.html',
   './manifest.json',
   './css/style.css',
   './css/animations.css',
@@ -10,7 +11,11 @@ const urlsToCache = [
   './js/utils.js',
   './js/app.js',
   './js/timer.js',
-  './js/history.js'
+  './js/history.js',
+  './js/pb-config.js',
+  './js/auth.js',
+  './js/api.js',
+  './js/sync.js'
 ];
 
 self.addEventListener('install', event => {

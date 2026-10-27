@@ -1,5 +1,6 @@
 import { TREINO_A, TREINO_B, DIAS_PARA_TREINO, RODADAS } from './data.js';
 import { getTodayISO, getDayName, storageGet, storageSet, STORAGE_KEYS, generateId, formatSeconds } from './utils.js';
+import { syncOnExerciseFinish } from './sync.js';
 
 let selectedWeek = "Semana 1";
 let workoutPlan = [];
@@ -311,6 +312,8 @@ function finishExercise() {
   });
   
   saveCurrentSession();
+  // Sincroniza assim que termina o exercício (antes do descanso)
+  syncOnExerciseFinish();
   
   // Check if last exercise of round
   const isLastExerciseOfRound = currentState.exerciseIndex === workoutPlan[currentState.round].length - 1;
