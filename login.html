@@ -124,9 +124,13 @@
     import { getSession, login } from './js/auth.js';
     import { syncNow } from './js/sync.js';
 
-    const session = await getSession();
-    if (session) {
-      window.location.href = 'index.html';
+    try {
+      const session = await getSession();
+      if (session) {
+        window.location.href = 'index.html';
+      }
+    } catch (e) {
+      console.warn('[AUTH] Sem conexão para validar a sessão:', e);
     }
 
     const form = document.getElementById('loginForm');

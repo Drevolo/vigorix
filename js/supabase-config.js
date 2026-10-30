@@ -1,2 +1,2 @@
-export const SUPABASE_URL = "COLOQUE_SUA_URL_AQUI";
-export const SUPABASE_ANON_KEY = "COLOQUE_SUA_ANON_KEY_AQUI";
+export const SUPABASE_URL = "https://zssawfmvlcsrirupgvnv.supabase.co";
+export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpzc2F3Zm12bGNzcmlydXBndm52Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxNDYyMzMsImV4cCI6MjEwODcyMjIzM30.vpNBQflTyCG71P0v1U9q92qE6Q8HVq0gGE-PdjmG1tU";

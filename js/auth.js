@@ -53,8 +53,15 @@ export async function logout() {
 }
 
 export async function requireAuth() {
-  const session = await getSession();
-  if (!session) {
+  try {
+    const session = await getSession();
+    if (session) return true;
+  } catch (e) {
+    // Sem internet: confia no que está salvo no aparelho (modo offline do PWA)
+    console.warn('[AUTH] Não foi possível validar a sessão:', e);
+  }
+
+  if (!isLoggedIn()) {
     window.location.href = 'login.html';
     return false;
   }

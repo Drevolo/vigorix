@@ -1,8 +1,42 @@
-import { storageGet, STORAGE_KEYS } from './utils.js';
+import { storageGet, STORAGE_KEYS, getTodayISO } from './utils.js';
 
 let currentFilter = 'todos';
 let currentView = 'calendario';
 let calendarDate = new Date();
+
+// Registros antigos não tinham `detalhes`/`concluidos`; normaliza na leitura.
+function normalizeRecord(item) {
+  const registro = { ...item };
+  const exercises = Array.isArray(registro.exercises) ? registro.exercises : [];
+
+  if (registro.concluidos === undefined) registro.concluidos = exercises.length;
+  if (registro.totalExercicios === undefined) registro.totalExercicios = exercises.length;
+  if (registro.finalizadoEm === undefined) registro.finalizadoEm = registro.completedAt;
+  if (registro.semana === undefined) registro.semana = '—';
+
+  if (!registro.detalhes && exercises.length > 0) {
+    const rodadas = new Map();
+    exercises.forEach(ex => {
+      const numero = ex.round || 1;
+      if (!rodadas.has(numero)) rodadas.set(numero, { numero, exercicios: [] });
+      rodadas.get(numero).exercicios.push({
+        nome: ex.nome,
+        meta: ex.meta,
+        feito: true,
+        time: ex.time
+      });
+    });
+    registro.detalhes = [...rodadas.values()].sort((a, b) => a.numero - b.numero);
+  }
+
+  return registro;
+}
+
+function readHistory() {
+  const bruto = storageGet(STORAGE_KEYS.HISTORY, []);
+  const lista = Array.isArray(bruto) ? bruto : [];
+  return lista.map(normalizeRecord);
+}
 
 function init() {
   // View toggle
@@ -50,11 +84,14 @@ function init() {
     }
   });
   
+  // Quando o sync trouxer dados de outro aparelho, atualiza a tela
+  window.addEventListener('vigorix:synced', render);
+  
   render();
 }
 
 function render() {
-  const history = storageGet(STORAGE_KEYS.HISTORY, []);
+  const history = readHistory();
   
   // Estatísticas
   document.getElementById('statTotal').textContent = history.length;
@@ -68,14 +105,15 @@ function render() {
     renderList(history);
   }
   
-  lucide.createIcons();
+  if (window.lucide) window.lucide.createIcons();
 }
 
 function renderCalendar() {
-  const history = storageGet(STORAGE_KEYS.HISTORY, []);
+  const history = readHistory();
   const historyDates = new Set(history.map(h => h.data));
   const grid = document.getElementById('calendarGrid');
   const label = document.getElementById('calMonthLabel');
+  const today = getTodayISO();
   
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
@@ -100,7 +138,7 @@ function renderCalendar() {
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const hasTreino = historyDates.has(dateStr);
-    const isToday = dateStr === new Date().toISOString().split('T')[0];
+    const isToday = dateStr === today;
     
     const dayEl = document.createElement('button');
     dayEl.style.height = '2.75rem';
@@ -141,7 +179,7 @@ function renderCalendar() {
 }
 
 function renderList(history) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayISO();
   
   let filtered = [...history];
   if (currentFilter === 'hoje') {
@@ -149,7 +187,7 @@ function renderList(history) {
   } else if (currentFilter === '7dias') {
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoISO = weekAgo.toISOString().split('T')[0];
+    const weekAgoISO = getTodayISO(weekAgo);
     filtered = filtered.filter(h => h.data >= weekAgoISO);
   }
   
@@ -235,4 +273,8 @@ function showDetails(item) {
   modal.classList.add('active');
 }
 
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

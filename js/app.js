@@ -1,6 +1,6 @@
 import { TREINO_A, TREINO_B, DIAS_PARA_TREINO, RODADAS } from './data.js';
 import { getTodayISO, getDayName, storageGet, storageSet, STORAGE_KEYS, generateId, formatSeconds } from './utils.js';
-import { syncOnExerciseFinish } from './sync.js';
+import { syncPush } from './sync.js';
 
 let selectedWeek = "Semana 1";
 let workoutPlan = [];
@@ -19,6 +19,13 @@ let timers = {
   exercise: null,
   rest: null
 };
+
+// O CDN do Lucide pode falhar offline; o app deve continuar funcionando.
+function refreshIcons() {
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
+}
 
 function init() {
   // Configurações
@@ -49,7 +56,29 @@ function init() {
   // Render
   render();
   
-  lucide.createIcons();
+  // Se o sync trouxe dados de outro aparelho, atualiza a tela
+  window.addEventListener('vigorix:synced', handleRemoteUpdate);
+  
+  refreshIcons();
+}
+
+function handleRemoteUpdate() {
+  // Não mexe no treino se houver cronômetro rodando
+  if (timers.exercise || timers.rest) return;
+  
+  const settings = storageGet(STORAGE_KEYS.SETTINGS, null);
+  if (settings && settings.semana && settings.semana !== selectedWeek) {
+    selectedWeek = settings.semana;
+    document.querySelectorAll('.week-btn-sidebar').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.week === selectedWeek);
+    });
+    const semanaEl = document.getElementById('sidebarSemana');
+    if (semanaEl) semanaEl.textContent = selectedWeek;
+  }
+  
+  buildWorkoutPlan();
+  loadCurrentSession();
+  render();
 }
 
 function setupSidebar() {
@@ -96,6 +125,7 @@ function setupWeekSelectors() {
       buildWorkoutPlan();
       loadCurrentSession();
       render();
+      syncPush();
     });
   });
 }
@@ -176,6 +206,12 @@ function loadCurrentSession() {
   
   if (saved && saved.date === today) {
     currentState = saved;
+    // Cronômetro não sobrevive a recarregar a página: volta para "pronto"
+    if (currentState.phase === 'resting' || currentState.phase === 'exercising') {
+      currentState.phase = 'ready';
+      currentState.restTime = 0;
+      currentState.restDuration = 0;
+    }
     // Rebuild plan in case week changed
     buildWorkoutPlan();
     return;
@@ -220,7 +256,7 @@ function render() {
     document.querySelector('.action-section').style.display = 'none';
     document.getElementById('completionSection').style.display = 'flex';
     renderSidebarHistory();
-    lucide.createIcons();
+    refreshIcons();
     return;
   }
   
@@ -276,7 +312,7 @@ function render() {
   }
   
   renderSidebarHistory();
-  lucide.createIcons();
+  refreshIcons();
 }
 
 function startExercise() {
@@ -313,7 +349,7 @@ function finishExercise() {
   
   saveCurrentSession();
   // Sincroniza assim que termina o exercício (antes do descanso)
-  syncOnExerciseFinish();
+  syncPush();
   
   // Check if last exercise of round
   const isLastExerciseOfRound = currentState.exerciseIndex === workoutPlan[currentState.round].length - 1;
@@ -383,6 +419,22 @@ function completeWorkout() {
   
   const history = storageGet(STORAGE_KEYS.HISTORY, []);
   const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
+  const totalExercicios = RODADAS * (workoutPlan[0] ? workoutPlan[0].length : 5);
+  
+  // Agrupa por rodada para a tela de histórico
+  const porRodada = new Map();
+  currentState.completedExercises.forEach(ex => {
+    const numero = ex.round || 1;
+    if (!porRodada.has(numero)) {
+      porRodada.set(numero, { numero, exercicios: [] });
+    }
+    porRodada.get(numero).exercicios.push({
+      nome: ex.nome,
+      meta: ex.meta,
+      feito: true,
+      time: ex.time
+    });
+  });
   
   const registro = {
     id: generateId(),
@@ -391,6 +443,10 @@ function completeWorkout() {
     treino: tipoTreino,
     semana: selectedWeek,
     completedAt: Date.now(),
+    finalizadoEm: Date.now(),
+    concluidos: currentState.completedExercises.length,
+    totalExercicios,
+    detalhes: [...porRodada.values()].sort((a, b) => a.numero - b.numero),
     exercises: currentState.completedExercises
   };
   
@@ -400,6 +456,9 @@ function completeWorkout() {
   currentState.phase = 'completed';
   saveCurrentSession();
   render();
+  
+  // Envia o treino concluído para a nuvem
+  syncPush();
 }
 
 function newWorkout() {
@@ -416,6 +475,7 @@ function newWorkout() {
   };
   saveCurrentSession();
   render();
+  syncPush();
 }
 
 function resetCurrentWorkout() {
@@ -441,6 +501,7 @@ function resetCurrentWorkout() {
     };
     saveCurrentSession();
     render();
+    syncPush();
     // Close sidebar on mobile
     document.getElementById('sidebar').classList.remove('active');
     document.getElementById('sidebarOverlay').classList.remove('active');
@@ -528,7 +589,12 @@ function saveEdits() {
   
   buildWorkoutPlan();
   render();
+  syncPush();
   alert('Exercícios atualizados!');
 }
 
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

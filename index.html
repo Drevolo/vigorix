@@ -185,22 +185,30 @@
     import { requireAuth, logout } from './js/auth.js';
     import { syncNow } from './js/sync.js';
 
-    requireAuth();
-    syncNow(true);
+    const autenticado = await requireAuth();
 
-    const btnSync = document.getElementById('btnSyncNow');
-    const btnLogout = document.getElementById('btnLogout');
+    if (autenticado) {
+      // Se a rede estiver ruim, não segura a tela por mais de 4s
+      await Promise.race([
+        syncNow(),
+        new Promise(resolve => setTimeout(resolve, 4000))
+      ]);
 
-    if (btnSync) {
-      btnSync.addEventListener('click', () => syncNow(false));
-    }
-    if (btnLogout) {
-      btnLogout.addEventListener('click', logout);
+      await import('./js/app.js');
+
+      const btnSync = document.getElementById('btnSyncNow');
+      const btnLogout = document.getElementById('btnLogout');
+
+      if (btnSync) {
+        btnSync.addEventListener('click', () => syncNow());
+      }
+      if (btnLogout) {
+        btnLogout.addEventListener('click', logout);
+      }
     }
   </script>
-  <script type="module" src="js/app.js"></script>
   <script>
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(console.error);
     }

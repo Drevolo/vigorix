@@ -1,5 +1,5 @@
-import { STORAGE_KEYS, storageGet, storageSet } from './utils.js';
-import { isLoggedIn, getUser } from './auth.js';
+import { STORAGE_KEYS, storageGet, storageSet, getLocalUpdatedAt, setLocalUpdatedAt } from './utils.js';
+import { isLoggedIn } from './auth.js';
 import { listMyStore, upsertStoreRecord } from './api.js';
 
 const SYNC_KEYS = [
@@ -10,6 +10,13 @@ const SYNC_KEYS = [
 ];
 
 let syncInProgress = false;
+let pendingPush = false;
+
+function drainPendingPush() {
+  if (!pendingPush) return;
+  pendingPush = false;
+  syncPush();
+}
 
 function setStatus(text) {
   const el = document.getElementById('syncStatus');
@@ -21,78 +28,176 @@ function getTime() {
   return now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export async function syncNow(silent = false) {
-  if (syncInProgress) return;
+function sortHistory(list) {
+  return [...list].sort((a, b) => {
+    const dataA = String(a && a.data ? a.data : '');
+    const dataB = String(b && b.data ? b.data : '');
+    if (dataA !== dataB) return dataB.localeCompare(dataA);
+    const tempoA = (a && (a.completedAt || a.finalizadoEm)) || 0;
+    const tempoB = (b && (b.completedAt || b.finalizadoEm)) || 0;
+    if (tempoA !== tempoB) return tempoB - tempoA;
+    return String(a && a.id).localeCompare(String(b && b.id));
+  });
+}
+
+// União por id: nunca perde treino feito em outro aparelho.
+function mergeHistory(localList, remoteList) {
+  const porId = new Map();
+  [...remoteList, ...localList].forEach(item => {
+    if (!item || !item.id) return;
+    const anterior = porId.get(item.id);
+    if (!anterior) {
+      porId.set(item.id, item);
+      return;
+    }
+    const tempoAnterior = anterior.completedAt || anterior.finalizadoEm || 0;
+    const tempoAtual = item.completedAt || item.finalizadoEm || 0;
+    if (tempoAtual >= tempoAnterior) porId.set(item.id, item);
+  });
+  return sortHistory([...porId.values()]);
+}
+
+function remoteIsNewer(remote, localUpdatedAt) {
+  if (!localUpdatedAt) return true;
+  const remoto = Date.parse(remote && remote.updated_at) || 0;
+  const local = Date.parse(localUpdatedAt) || 0;
+  return remoto > local;
+}
+
+function applyRemote(key, remote) {
+  storageSet(key, remote.data);
+  setLocalUpdatedAt(key, remote.updated_at);
+}
+
+/**
+ * Sincroniza com o Supabase.
+ * - histórico: união por id (merge)
+ * - demais chaves: vence a alteração mais recente (local ou remota)
+ */
+export async function syncNow() {
+  if (syncInProgress) return { skipped: true };
   if (!isLoggedIn()) {
     setStatus('Não sincronizado (não logado)');
-    return;
+    return { skipped: true };
+  }
+  if (!navigator.onLine) {
+    setStatus('Offline — dados salvos no aparelho');
+    return { offline: true };
   }
 
   syncInProgress = true;
-  if (!silent) setStatus('Sincronizando...');
-  else setStatus('Sincronizando...');
+  setStatus('Sincronizando...');
+
+  let aplicouRemoto = false;
+  let enviouAlgo = false;
 
   try {
-    const remote = await listMyStore();
-    const remoteMap = new Map();
-    for (const item of remote) {
-      if (item.key && item.data !== undefined) {
-        remoteMap.set(item.key, item);
-      }
+    const remoto = await listMyStore();
+    const remotoPorChave = new Map();
+    for (const item of remoto) {
+      if (item && item.key) remotoPorChave.set(item.key, item);
     }
 
     for (const key of SYNC_KEYS) {
       const local = storageGet(key, null);
-      const rem = remoteMap.get(key);
+      const remotoItem = remotoPorChave.get(key);
+      const localVazio = local === null || local === undefined;
 
-      if (rem && !local) {
-        storageSet(key, rem.data);
+      if (!remotoItem) {
+        if (!localVazio) {
+          await upsertStoreRecord(key, local);
+          enviouAlgo = true;
+        }
         continue;
+      }
+
+      if (localVazio) {
+        applyRemote(key, remotoItem);
+        aplicouRemoto = true;
+        continue;
+      }
+
+      if (key === STORAGE_KEYS.HISTORY) {
+        const localLista = Array.isArray(local) ? local : [];
+        const remotoLista = Array.isArray(remotoItem.data) ? remotoItem.data : [];
+        const mesclado = mergeHistory(localLista, remotoLista);
+
+        if (JSON.stringify(mesclado) !== JSON.stringify(sortHistory(localLista))) {
+          storageSet(key, mesclado);
+          aplicouRemoto = true;
+        }
+        if (JSON.stringify(mesclado) !== JSON.stringify(sortHistory(remotoLista))) {
+          await upsertStoreRecord(key, mesclado);
+          enviouAlgo = true;
+        }
+        continue;
+      }
+
+      if (remoteIsNewer(remotoItem, getLocalUpdatedAt(key))) {
+        applyRemote(key, remotoItem);
+        aplicouRemoto = true;
+      } else {
+        await upsertStoreRecord(key, local);
+        enviouAlgo = true;
       }
     }
 
+    if (aplicouRemoto) {
+      window.dispatchEvent(new CustomEvent('vigorix:synced'));
+    }
+
+    if (aplicouRemoto || enviouAlgo) {
+      setStatus(`Sincronizado às ${getTime()}`);
+    } else {
+      setStatus(`Tudo atualizado às ${getTime()}`);
+    }
+    return { aplicouRemoto, enviouAlgo };
+  } catch (e) {
+    console.error('[SYNC]', e);
+    setStatus('Erro ao sincronizar');
+    return { error: e };
+  } finally {
+    syncInProgress = false;
+    drainPendingPush();
+  }
+}
+
+/**
+ * Envio rápido para o servidor (não puxa nada).
+ */
+export async function syncPush() {
+  if (!isLoggedIn()) {
+    setStatus('Salvo no aparelho (não logado)');
+    return;
+  }
+  if (!navigator.onLine) {
+    setStatus('Offline — salvo no aparelho');
+    return;
+  }
+  if (syncInProgress) {
+    pendingPush = true;
+    return;
+  }
+
+  syncInProgress = true;
+  setStatus('Salvando...');
+
+  try {
     for (const key of SYNC_KEYS) {
       const local = storageGet(key, null);
       if (local !== null && local !== undefined) {
         await upsertStoreRecord(key, local);
       }
     }
-
-    setStatus(`Sincronizado às ${getTime()}`);
-  } catch (e) {
-    console.error('[SYNC]', e);
-    setStatus('Erro ao sincronizar');
-  } finally {
-    syncInProgress = false;
-  }
-}
-
-export async function syncOnExerciseFinish() {
-  if (!isLoggedIn()) {
-    setStatus('Salvo local (não logado)');
-    return;
-  }
-  if (syncInProgress) return;
-
-  syncInProgress = true;
-  setStatus('Salvando...');
-
-  try {
-    const localCurrent = storageGet(STORAGE_KEYS.CURRENT, null);
-    if (localCurrent !== null) {
-      await upsertStoreRecord(STORAGE_KEYS.CURRENT, localCurrent);
-    }
-    for (const key of [STORAGE_KEYS.HISTORY, STORAGE_KEYS.SETTINGS, STORAGE_KEYS.EDITED_EXERCISES]) {
-      const local = storageGet(key, null);
-      if (local !== null) {
-        await upsertStoreRecord(key, local);
-      }
-    }
-    setStatus(`Sincronizado às ${getTime()}`);
+    setStatus(`Salvo às ${getTime()}`);
   } catch (e) {
     console.error('[SYNC_FINISH]', e);
-    setStatus('Salvo local (falha online)');
+    setStatus('Salvo no aparelho (falha online)');
   } finally {
     syncInProgress = false;
+    drainPendingPush();
   }
 }
+
+// Alias mantido para compatibilidade.
+export const syncOnExerciseFinish = syncPush;

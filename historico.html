@@ -115,9 +115,20 @@
     </div>
   </div>
 
-  <script type="module" src="js/history.js"></script>
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { syncNow } from './js/sync.js';
+
+    if (await requireAuth()) {
+      await Promise.race([
+        syncNow(),
+        new Promise(resolve => setTimeout(resolve, 4000))
+      ]);
+      await import('./js/history.js');
+    }
+  </script>
   <script>
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(console.error);
     }
