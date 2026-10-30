@@ -3,156 +3,306 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0a0a0b">
+  <meta name="theme-color" content="#08080a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Vigorix">
-  
+
   <title>Vigorix - Treino</title>
-  
+
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-  
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-  
+
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/animations.css">
 </head>
-<body class="app-layout">
+<body class="app-shell">
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-logo">Vigorix</div>
-      <button class="sidebar-close" id="sidebarClose">
+      <div class="brand">
+        <div class="brand-mark">V</div>
+        <div class="brand-name">Vigorix</div>
+      </div>
+      <button class="sidebar-close" id="sidebarClose" aria-label="Fechar menu">
         <i data-lucide="x" style="width: 20px; height: 20px;"></i>
       </button>
     </div>
-    
+
     <div class="sidebar-content">
       <div class="sidebar-section">
-        <div class="sidebar-section-title">Treino do Dia</div>
-        <div class="sidebar-info">
-          <div><span id="sidebarDate">--/--/----</span></div>
-          <div><span id="sidebarDay">---</span> • <span id="sidebarTreino">Treino --</span></div>
-          <div style="margin-top: 0.5rem;">Semana: <span id="sidebarSemana">Semana 1</span></div>
-        </div>
+        <div class="eyebrow">Treino do dia</div>
+        <div class="sidebar-date" id="sidebarDate">--/--/----</div>
+        <div class="sidebar-workout" id="sidebarTreino">Treino --</div>
+
         <div class="week-selector-sidebar">
           <button class="week-btn-sidebar" data-week="Semana 1">S1</button>
           <button class="week-btn-sidebar" data-week="Semana 2">S2</button>
           <button class="week-btn-sidebar" data-week="Semana 3">S3</button>
           <button class="week-btn-sidebar" data-week="Semana 4+">S4+</button>
         </div>
+        <div class="sidebar-week-note">Semana ativa · <span id="sidebarSemana">Semana 1</span></div>
       </div>
-      
+
+      <div class="sidebar-card">
+        <div class="sync-row">
+          <div class="sync-icon">
+            <i data-lucide="cloud-check" style="width: 14px; height: 14px;"></i>
+          </div>
+          <div class="sync-text">
+            <div class="sync-title">Sincronização</div>
+            <div class="sync-sub" id="syncStatus">Verificando...</div>
+          </div>
+        </div>
+        <div class="sync-actions">
+          <button class="btn-sync" id="btnSyncNow">
+            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
+            Sincronizar
+          </button>
+          <button class="btn-sync" id="btnLogout">
+            <i data-lucide="log-out" style="width: 12px; height: 12px;"></i>
+            Sair
+          </button>
+        </div>
+      </div>
+
       <div class="sidebar-section">
         <div class="sidebar-section-header">
-          <div class="sidebar-section-title">Sincronização</div>
-        </div>
-        <div class="sidebar-info" style="font-size: 0.85rem;">
-          <div id="syncStatus">Verificando...</div>
-        </div>
-        <button class="sidebar-btn" id="btnSyncNow">
-          <i data-lucide="refresh-cw" style="width: 18px; height: 18px;"></i>
-          Sincronizar agora
-        </button>
-        <button class="sidebar-btn" id="btnLogout">
-          <i data-lucide="log-out" style="width: 18px; height: 18px;"></i>
-          Sair
-        </button>
-      </div>
-      
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">
-          <div class="sidebar-section-title">Exercícios Realizados Hoje</div>
+          <div class="sidebar-section-title">Exercícios de hoje</div>
+          <span class="sidebar-count" id="sidebarCount">0/0</span>
         </div>
         <div class="sidebar-history" id="sidebarHistory">
           <div class="sidebar-empty">Nenhum ainda</div>
         </div>
       </div>
-      
-      <div class="sidebar-section">
+
+      <div class="sidebar-section sidebar-links">
         <button class="sidebar-btn" id="btnEditExercises">
-          <i data-lucide="edit-3" style="width: 18px; height: 18px;"></i>
-          Editar Exercícios
+          <i data-lucide="edit-3" style="width: 15px; height: 15px;"></i>
+          Editar exercícios
         </button>
         <a href="historico.html" class="sidebar-btn">
-          <i data-lucide="history" style="width: 18px; height: 18px;"></i>
-          Ver Histórico Completo
+          <i data-lucide="history" style="width: 15px; height: 15px;"></i>
+          Ver histórico completo
         </a>
-        <button class="sidebar-btn" id="btnResetWorkout" style="color: var(--danger);">
-          <i data-lucide="rotate-ccw" style="width: 18px; height: 18px;"></i>
-          Resetar Treino do Dia
+        <button class="sidebar-btn danger" id="btnResetWorkout">
+          <i data-lucide="rotate-ccw" style="width: 15px; height: 15px;"></i>
+          Resetar treino do dia
         </button>
       </div>
     </div>
   </aside>
-  
+
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
-  
-  <!-- Main Content -->
-  <div class="main-content">
-    <header class="header">
-      <div class="header-top">
-        <button class="menu-btn" id="menuBtn">
-          <i data-lucide="menu" style="width: 24px; height: 24px;"></i>
-        </button>
-        <div class="logo">Vigorix</div>
-        <div style="width: 40px;"></div>
+
+  <!-- Main -->
+  <div class="app-main">
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn" aria-label="Abrir menu">
+        <i data-lucide="menu" style="width: 22px; height: 22px;"></i>
+      </button>
+      <div class="topbar-brand">
+        <div class="brand-mark brand-mark-sm">V</div>
+        <span>Vigorix</span>
       </div>
-      <div class="header-info-row">
-        <div>
-          <span id="headerDate">--/--/----</span> • <span id="headerDay">---</span>
-        </div>
-        <span class="treino-badge" id="headerTreino">Treino --</span>
-      </div>
-      <div class="progress-indicator">
-        <span>Rodada <span id="currentRound">1</span>/<span id="totalRounds">3</span> • Exercício <span id="currentExIndex">1</span>/<span id="totalEx">5</span></span>
+      <div class="topbar-right">
+        <span class="status-pill">
+          <span class="status-dot"></span>
+          <span id="syncPillText">Sincronizado</span>
+        </span>
+        <div class="avatar avatar-sm" id="avatarInitialTop">G</div>
       </div>
     </header>
 
-    <main class="main-container">
-      <!-- Exercise Display -->
-      <section class="exercise-display" id="exerciseDisplay">
-        <div class="exercise-info">
-          <div class="exercise-badges">
-            <span class="exercise-badge" id="exerciseFocus">Foco</span>
-            <span class="exercise-badge" id="exerciseMeta">Meta</span>
+    <main class="dashboard">
+      <div class="page-head">
+        <div class="page-head-copy">
+          <div class="eyebrow"><span id="headerDate">--/--/----</span> · <span id="headerDay">---</span></div>
+          <div class="page-title-row">
+            <h1 class="page-title" id="headerTreino">Treino --</h1>
+            <span class="badge-week">
+              <i data-lucide="calendar-days" style="width: 11px; height: 11px;"></i>
+              <span id="headerSemana">Semana 1</span>
+            </span>
           </div>
-          <h1 class="exercise-name-main" id="exerciseName">Nome do Exercício</h1>
-          <p class="exercise-instruction-main" id="exerciseInstruction">Instrução</p>
         </div>
-      </section>
+        <div class="page-head-actions">
+          <div class="streak-pill">
+            <i data-lucide="flame" style="width: 14px; height: 14px;"></i>
+            <span id="headerStreak">0 dias seguidos</span>
+          </div>
+          <div class="avatar avatar-lg" id="avatarInitial">G</div>
+        </div>
+      </div>
 
-      <!-- Timer Section -->
-      <section class="timer-section">
-        <div class="timer-mode-indicator" id="timerModeIndicator">PRONTO PARA INICIAR</div>
-        <div class="main-timer" id="mainTimer">00:00</div>
-        <div class="timer-label" id="timerLabel">Tempo do Exercício</div>
-      </section>
+      <div class="week-selector-inline">
+        <button class="week-btn-sidebar" data-week="Semana 1">S1</button>
+        <button class="week-btn-sidebar" data-week="Semana 2">S2</button>
+        <button class="week-btn-sidebar" data-week="Semana 3">S3</button>
+        <button class="week-btn-sidebar" data-week="Semana 4+">S4+</button>
+      </div>
 
-      <!-- Action Buttons -->
-      <section class="action-section">
-        <button class="action-btn action-btn-primary" id="btnStart">
-          <i data-lucide="play" style="width: 24px; height: 24px;"></i>
-          Iniciar Exercício
-        </button>
-        <button class="action-btn action-btn-success" id="btnFinish" style="display: none;">
-          <i data-lucide="check" style="width: 24px; height: 24px;"></i>
-          Finalizar Exercício
-        </button>
-        <button class="action-btn action-btn-warning" id="btnSkipRest" style="display: none;">
-          <i data-lucide="skip-forward" style="width: 24px; height: 24px;"></i>
-          Pular Descanso
-        </button>
-      </section>
-      
-      <section class="completion-section" id="completionSection" style="display: none;">
-        <div class="completion-message">🎉 Treino Concluído!</div>
-        <button class="action-btn action-btn-success" id="btnNewWorkout">
-          <i data-lucide="refresh-cw" style="width: 24px; height: 24px;"></i>
-          Novo Treino
-        </button>
-      </section>
+      <div class="dashboard-grid">
+        <section class="primary-column">
+          <!-- Exercise -->
+          <div id="exerciseDisplay">
+            <article class="hero-card">
+              <div class="hero-copy">
+                <div class="exercise-badges">
+                  <span class="pill-round">
+                    <i data-lucide="repeat" style="width: 11px; height: 11px;"></i>
+                    <span id="exerciseRoundPill">RODADA 1 DE 3</span>
+                  </span>
+                  <span class="exercise-badge" id="exerciseFocus">Foco</span>
+                </div>
+
+                <div class="hero-info">
+                  <h1 class="exercise-name-main" id="exerciseName">Nome do Exercício</h1>
+                  <p class="exercise-subtitle" id="exerciseSubtitle">Exercício 1 de 5</p>
+                  <p class="exercise-instruction-main" id="exerciseInstruction">Instrução</p>
+                </div>
+
+                <div class="hero-divider"></div>
+
+                <div class="hero-meta-row">
+                  <div class="meta-block">
+                    <div class="eyebrow">Meta da semana</div>
+                    <div class="meta-value" id="exerciseMeta">Meta</div>
+                  </div>
+                  <div class="meta-chip" id="exerciseMetaDetail">Detalhe</div>
+                </div>
+              </div>
+
+              <div class="timer-section">
+                <div class="timer-mode-indicator" id="timerModeIndicator">PRONTO PARA INICIAR</div>
+                <div class="ring-wrap">
+                  <svg class="timer-ring" viewBox="0 0 160 160" aria-hidden="true">
+                    <defs>
+                      <linearGradient id="ringGradient" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#7C3FFF"></stop>
+                        <stop offset="100%" stop-color="#22D3EE"></stop>
+                      </linearGradient>
+                    </defs>
+                    <circle class="ring-track" cx="80" cy="80" r="70"></circle>
+                    <circle class="ring-progress" id="ringProgress" cx="80" cy="80" r="70"></circle>
+                  </svg>
+                  <div class="ring-center">
+                    <div class="main-timer" id="mainTimer">00:00</div>
+                    <div class="timer-label" id="timerLabel">Tempo do Exercício</div>
+                  </div>
+                  <div class="ring-round-tag" id="ringRoundTag">R1 · E1</div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Actions -->
+          <section class="action-section">
+            <button class="action-btn action-btn-primary" id="btnStart">
+              <i data-lucide="play" style="width: 20px; height: 20px;"></i>
+              Iniciar Exercício
+            </button>
+            <button class="action-btn action-btn-success" id="btnFinish" style="display: none;">
+              <i data-lucide="check" style="width: 20px; height: 20px;"></i>
+              Finalizar Exercício
+            </button>
+            <button class="action-btn action-btn-warning" id="btnSkipRest" style="display: none;">
+              <i data-lucide="skip-forward" style="width: 18px; height: 18px;"></i>
+              Pular Descanso
+            </button>
+            <button class="action-btn action-btn-ghost action-btn-edit" data-action="edit-exercises">
+              <i data-lucide="sliders-horizontal" style="width: 17px; height: 17px;"></i>
+              Editar treino
+            </button>
+          </section>
+
+          <!-- Completion -->
+          <section class="completion-section" id="completionSection" style="display: none;">
+            <div class="completion-emoji">🎉</div>
+            <div class="completion-message">Treino Concluído!</div>
+            <p class="completion-sub">Você completou todas as rodadas de hoje. Descanse e volte amanhã.</p>
+            <button class="action-btn action-btn-primary" id="btnNewWorkout">
+              <i data-lucide="refresh-cw" style="width: 20px; height: 20px;"></i>
+              Novo Treino
+            </button>
+          </section>
+
+          <!-- Today progress -->
+          <section class="panel progress-card">
+            <div class="panel-head">
+              <span class="eyebrow">Progresso de hoje</span>
+              <span class="panel-count" id="progressCount">0 de 15</span>
+            </div>
+            <div class="progress-bars" id="progressBars"></div>
+            <div class="rounds-list" id="roundsList"></div>
+          </section>
+
+          <section class="tip-card">
+            <div class="tip-icon">
+              <i data-lucide="lightbulb" style="width: 15px; height: 15px;"></i>
+            </div>
+            <div>
+              <div class="eyebrow">Dica de execução</div>
+              <p class="tip-text" id="tipText">Mantenha a respiração controlada e priorize a técnica antes da velocidade.</p>
+            </div>
+          </section>
+        </section>
+
+        <!-- Side column (desktop) -->
+        <aside class="side-column">
+          <section class="panel streak-card">
+            <div class="panel-head">
+              <span class="eyebrow">Sequência</span>
+              <div class="icon-chip orange">
+                <i data-lucide="flame" style="width: 14px; height: 14px;"></i>
+              </div>
+            </div>
+            <div class="streak-value">
+              <strong id="streakDays">0 dias</strong>
+              <span>seguidos</span>
+            </div>
+            <div class="streak-week" id="streakWeek"></div>
+            <div class="streak-foot">
+              <span id="streakRecord">Recorde: 0 dias</span>
+              <span class="positive" id="streakWeekCount">0 esta semana</span>
+            </div>
+          </section>
+
+          <section class="panel recent-card">
+            <div class="panel-head">
+              <span class="eyebrow">Últimos treinos</span>
+              <a href="historico.html" class="link-more">Ver tudo</a>
+            </div>
+            <div class="recent-list" id="recentList">
+              <div class="sidebar-empty">Nenhum treino ainda</div>
+            </div>
+          </section>
+
+          <section class="panel summary-card">
+            <div class="panel-head">
+              <span class="eyebrow">Resumo da semana</span>
+              <span class="chip-soft" id="summaryWeek">Semana 1</span>
+            </div>
+            <div class="summary-stats">
+              <div>
+                <strong id="weekWorkouts">0</strong>
+                <span>treinos</span>
+              </div>
+              <div>
+                <strong id="weekMinutes">0</strong>
+                <span>minutos</span>
+              </div>
+            </div>
+            <div class="week-chart" id="weekChart"></div>
+          </section>
+        </aside>
+      </div>
     </main>
   </div>
 
@@ -173,21 +323,28 @@
         <div id="editExercisesList" class="edit-exercises-list">
           <!-- Gerado pelo JS -->
         </div>
-        <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-          <button class="btn btn-primary" id="btnSaveEdits" style="flex: 1;">Salvar</button>
-          <button class="btn btn-secondary" id="btnCancelEdits" style="flex: 1;">Cancelar</button>
+        <div class="modal-actions">
+          <button class="btn btn-primary" id="btnSaveEdits">Salvar</button>
+          <button class="btn btn-secondary" id="btnCancelEdits">Cancelar</button>
         </div>
       </div>
     </div>
   </div>
 
   <script type="module">
-    import { requireAuth, logout } from './js/auth.js';
+    import { requireAuth, getUser, logout } from './js/auth.js';
     import { syncNow } from './js/sync.js';
 
     const autenticado = await requireAuth();
 
     if (autenticado) {
+      const user = getUser();
+      const email = user && user.email ? user.email : '';
+      const inicial = (email.charAt(0) || 'V').toUpperCase();
+      document.querySelectorAll('#avatarInitial, #avatarInitialTop').forEach(el => {
+        el.textContent = inicial;
+      });
+
       // Se a rede estiver ruim, não segura a tela por mais de 4s
       await Promise.race([
         syncNow(),

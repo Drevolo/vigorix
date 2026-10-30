@@ -20,11 +20,88 @@ let timers = {
   rest: null
 };
 
+const RING_CIRCUMFERENCE = 439.82;
+const MESES_CURTOS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+
 // O CDN do Lucide pode falhar offline; o app deve continuar funcionando.
 function refreshIcons() {
   if (window.lucide && typeof window.lucide.createIcons === 'function') {
     window.lucide.createIcons();
   }
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function totalExercises() {
+  const porRodada = workoutPlan[0] ? workoutPlan[0].length : 5;
+  return RODADAS * porRodada;
+}
+
+function readHistory() {
+  const list = storageGet(STORAGE_KEYS.HISTORY, []);
+  return Array.isArray(list) ? list.filter(item => item && item.data) : [];
+}
+
+function startOfWeek(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const offset = (d.getDay() + 6) % 7; // segunda-feira
+  d.setDate(d.getDate() - offset);
+  return d;
+}
+
+function computeStreak(history) {
+  const dates = new Set(history.map(item => item.data));
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+
+  if (!dates.has(getTodayISO(cursor))) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  let streak = 0;
+  while (dates.has(getTodayISO(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+function computeStreakRecord(history) {
+  const dates = [...new Set(history.map(item => item.data))].sort();
+  let best = 0;
+  let run = 0;
+  let previous = null;
+
+  dates.forEach(iso => {
+    const current = new Date(`${iso}T00:00:00`);
+    if (previous && (current - previous) / 86400000 === 1) {
+      run++;
+    } else {
+      run = 1;
+    }
+    best = Math.max(best, run);
+    previous = current;
+  });
+
+  return best;
+}
+
+function workoutMinutes(item) {
+  if (!item || !Array.isArray(item.exercises)) return 0;
+  return item.exercises.reduce((sum, ex) => sum + (Number(ex && ex.time) || 0), 0) / 60;
 }
 
 function init() {
@@ -103,11 +180,10 @@ function setupSidebar() {
   });
   
   // Header info in sidebar
-  document.getElementById('sidebarDate').textContent = new Date().toLocaleDateString('pt-BR');
-  document.getElementById('sidebarDay').textContent = getDayName(new Date());
+  setText('sidebarDate', new Date().toLocaleDateString('pt-BR'));
   const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
-  document.getElementById('sidebarTreino').textContent = `Treino ${tipoTreino}`;
-  document.getElementById('sidebarSemana').textContent = selectedWeek;
+  setText('sidebarTreino', `Treino ${tipoTreino}`);
+  setText('sidebarSemana', selectedWeek);
 }
 
 function setupWeekSelectors() {
@@ -138,15 +214,16 @@ function setupActionButtons() {
 }
 
 function setupEditModal() {
-  const btnEdit = document.getElementById('btnEditExercises');
   const editModal = document.getElementById('editModal');
   const editClose = document.getElementById('editClose');
   const btnCancel = document.getElementById('btnCancelEdits');
   const btnSave = document.getElementById('btnSaveEdits');
   
-  btnEdit.addEventListener('click', () => {
-    openEditModal();
-    editModal.classList.add('active');
+  document.querySelectorAll('#btnEditExercises, [data-action="edit-exercises"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      openEditModal();
+      editModal.classList.add('active');
+    });
   });
   
   editClose.addEventListener('click', () => {
@@ -237,18 +314,25 @@ function saveCurrentSession() {
 }
 
 function render() {
-  // Header
-  document.getElementById('headerDate').textContent = new Date().toLocaleDateString('pt-BR');
-  document.getElementById('headerDay').textContent = getDayName(new Date());
-  const tipoTreino = DIAS_PARA_TREINO[new Date().getDay()];
-  document.getElementById('headerTreino').textContent = `Treino ${tipoTreino}`;
-  
-  // Progress indicator
-  document.getElementById('currentRound').textContent = currentState.round + 1;
-  document.getElementById('totalRounds').textContent = RODADAS;
-  document.getElementById('currentExIndex').textContent = currentState.exerciseIndex + 1;
-  document.getElementById('totalEx').textContent = workoutPlan[0] ? workoutPlan[0].length : 5;
-  
+  const today = new Date();
+  const tipoTreino = DIAS_PARA_TREINO[today.getDay()];
+
+  // Header / page head
+  setText('headerDate', today.toLocaleDateString('pt-BR'));
+  setText('headerDay', getDayName(today));
+  setText('headerTreino', `Treino ${tipoTreino}`);
+  setText('headerSemana', selectedWeek);
+
+  setText('sidebarDate', today.toLocaleDateString('pt-BR'));
+  setText('sidebarTreino', `Treino ${tipoTreino}`);
+  setText('sidebarSemana', selectedWeek);
+
+  const timerSection = document.querySelector('.timer-section');
+  if (timerSection) timerSection.dataset.phase = currentState.phase;
+
+  renderProgress();
+  renderDashboard();
+
   // Check if completed
   if (currentState.phase === 'completed') {
     document.getElementById('exerciseDisplay').style.display = 'none';
@@ -282,37 +366,243 @@ function render() {
   }
   
   // Display exercise
-  document.getElementById('exerciseName').textContent = currentEx.nome;
-  document.getElementById('exerciseFocus').textContent = currentEx.foco;
-  document.getElementById('exerciseMeta').textContent = currentEx.meta;
-  document.getElementById('exerciseInstruction').textContent = currentEx.instrucao;
+  setText('exerciseName', currentEx.nome);
+  setText('exerciseFocus', currentEx.foco);
+  renderExerciseMeta(currentEx.meta);
+  setText('exerciseInstruction', currentEx.instrucao);
+  setText('exerciseRoundPill', `RODADA ${currentState.round + 1} DE ${RODADAS}`);
+  setText('exerciseSubtitle', `Exercício ${currentState.exerciseIndex + 1} de ${workoutPlan[currentState.round].length}`);
+  setText('ringRoundTag', `R${currentState.round + 1} · E${currentState.exerciseIndex + 1}`);
   
   // Timer display
   if (currentState.phase === 'resting') {
-    document.getElementById('timerModeIndicator').textContent = 'DESCANSO';
-    document.getElementById('timerLabel').textContent = currentState.restDuration === 60 ? 'Descanso entre Rodadas' : 'Descanso entre Exercícios';
-    document.getElementById('mainTimer').textContent = formatSeconds(currentState.restTime);
+    setText('timerModeIndicator', 'DESCANSO');
+    setText('timerLabel', currentState.restDuration === 60 ? 'Descanso entre Rodadas' : 'Descanso entre Exercícios');
+    setText('mainTimer', formatSeconds(currentState.restTime));
     document.getElementById('btnStart').style.display = 'none';
     document.getElementById('btnFinish').style.display = 'none';
     document.getElementById('btnSkipRest').style.display = 'flex';
   } else if (currentState.phase === 'exercising') {
-    document.getElementById('timerModeIndicator').textContent = 'FAZENDO EXERCÍCIO';
-    document.getElementById('timerLabel').textContent = 'Tempo decorrido';
-    document.getElementById('mainTimer').textContent = formatSeconds(currentState.exerciseTimer);
+    setText('timerModeIndicator', 'EM ANDAMENTO');
+    setText('timerLabel', 'Tempo decorrido');
+    setText('mainTimer', formatSeconds(currentState.exerciseTimer));
     document.getElementById('btnStart').style.display = 'none';
     document.getElementById('btnFinish').style.display = 'flex';
     document.getElementById('btnSkipRest').style.display = 'none';
   } else {
-    document.getElementById('timerModeIndicator').textContent = 'PRONTO PARA INICIAR';
-    document.getElementById('timerLabel').textContent = 'Clique em Iniciar';
-    document.getElementById('mainTimer').textContent = '00:00';
+    setText('timerModeIndicator', 'PRONTO PARA INICIAR');
+    setText('timerLabel', 'Toque em iniciar');
+    setText('mainTimer', '00:00');
     document.getElementById('btnStart').style.display = 'flex';
     document.getElementById('btnFinish').style.display = 'none';
     document.getElementById('btnSkipRest').style.display = 'none';
   }
-  
+
+  updateRing();
   renderSidebarHistory();
   refreshIcons();
+}
+
+function renderExerciseMeta(meta) {
+  const raw = String(meta || '');
+  const match = raw.match(/^(.*?)\s*\((.+)\)\s*$/);
+  setText('exerciseMeta', match ? match[1].trim() : (raw || '—'));
+
+  const detail = document.getElementById('exerciseMetaDetail');
+  if (detail) detail.textContent = match ? match[2].trim() : '';
+}
+
+function updateRing() {
+  const ring = document.getElementById('ringProgress');
+  if (!ring) return;
+
+  let fraction = 0;
+  if (currentState.phase === 'resting' && currentState.restDuration > 0) {
+    // Anel esvazia conforme o descanso termina
+    fraction = Math.max(0, Math.min(1, currentState.restTime / currentState.restDuration));
+  } else if (currentState.phase === 'exercising') {
+    // Tempo livre: o anel preenche até 60s
+    fraction = Math.min(1, currentState.exerciseTimer / 60);
+  } else if (currentState.phase === 'completed') {
+    fraction = 1;
+  }
+
+  ring.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - fraction));
+}
+
+function renderProgress() {
+  const total = totalExercises();
+  const done = currentState.completedExercises.length;
+  const bars = document.getElementById('progressBars');
+
+  if (bars) {
+    if (bars.children.length !== total) {
+      bars.innerHTML = '';
+      for (let i = 0; i < total; i++) {
+        const seg = document.createElement('span');
+        seg.className = 'progress-seg';
+        bars.appendChild(seg);
+      }
+    }
+
+    Array.from(bars.children).forEach((seg, index) => {
+      const isCurrent = currentState.phase !== 'completed' && index === done;
+      seg.className = 'progress-seg' + (index < done ? ' done' : isCurrent ? ' current' : '');
+    });
+  }
+
+  setText('progressCount', `${done} de ${total}`);
+  renderRounds();
+}
+
+function renderRounds() {
+  const container = document.getElementById('roundsList');
+  if (!container) return;
+
+  const doneKeys = new Set(
+    currentState.completedExercises.map(ex => `${ex.round}-${ex.exerciseIndex}`)
+  );
+
+  container.innerHTML = '';
+
+  workoutPlan.forEach((round, roundIndex) => {
+    const isCurrentRound = currentState.phase !== 'completed' && roundIndex === currentState.round;
+    const allDone = round.every((ex, index) => doneKeys.has(`${roundIndex + 1}-${index}`));
+    const card = document.createElement('div');
+    card.className = 'round-card' + (isCurrentRound ? ' is-current' : '') + (allDone ? ' is-done' : '');
+
+    const rows = round.map((ex, index) => {
+      const isDone = doneKeys.has(`${roundIndex + 1}-${index}`);
+      const isCurrent = isCurrentRound && index === currentState.exerciseIndex;
+      const dotClass = isDone ? 'done' : isCurrent ? 'current' : '';
+      const dotContent = isDone
+        ? '<i data-lucide="check" style="width: 8px; height: 8px;"></i>'
+        : isCurrent
+          ? '<i></i>'
+          : '';
+      return `
+        <div class="round-row${isCurrent ? ' is-current-row' : ''}">
+          <div class="round-dot ${dotClass}">${dotContent}</div>
+          <span>${escapeHtml(ex.nome)}</span>
+        </div>
+      `;
+    }).join('');
+
+    const headRight = isCurrentRound
+      ? '<span class="round-now">AGORA</span>'
+      : allDone
+        ? '<i data-lucide="check" class="round-check" style="width: 12px; height: 12px;"></i>'
+        : '';
+
+    card.innerHTML = `
+      <div class="round-head">
+        <span class="round-title">Rodada ${roundIndex + 1}</span>
+        ${headRight}
+      </div>
+      ${rows}
+    `;
+    container.appendChild(card);
+  });
+}
+
+function renderDashboard() {
+  const history = readHistory().sort((a, b) => {
+    const dataA = String(a.data || '');
+    const dataB = String(b.data || '');
+    if (dataA !== dataB) return dataB.localeCompare(dataA);
+    return (b.finalizadoEm || 0) - (a.finalizadoEm || 0);
+  });
+
+  const streak = computeStreak(history);
+  setText('headerStreak', `${streak} ${streak === 1 ? 'dia seguido' : 'dias seguidos'}`);
+  setText('streakDays', `${streak} ${streak === 1 ? 'dia' : 'dias'}`);
+  setText('streakRecord', `Recorde: ${computeStreakRecord(history)} dias`);
+  setText('summaryWeek', selectedWeek);
+
+  // Semana atual (segunda a domingo)
+  const weekStart = startOfWeek();
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    weekDates.push(getTodayISO(d));
+  }
+  const todayISO = getTodayISO();
+
+  const weekHistory = history.filter(item => weekDates.includes(item.data));
+  const weekMinutes = Math.round(weekHistory.reduce((sum, item) => sum + workoutMinutes(item), 0));
+
+  setText('weekWorkouts', String(weekHistory.length));
+  setText('weekMinutes', String(weekMinutes));
+  setText('streakWeekCount', `${weekHistory.length} esta semana`);
+
+  // Dias da sequência (domingo → sábado)
+  const streakWeek = document.getElementById('streakWeek');
+  if (streakWeek) {
+    const sunday = new Date(weekStart);
+    sunday.setDate(weekStart.getDate() - 1);
+    const letters = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+    streakWeek.innerHTML = letters.map((letter, index) => {
+      const d = new Date(sunday);
+      d.setDate(sunday.getDate() + index);
+      const iso = getTodayISO(d);
+      const hasWorkout = history.some(item => item.data === iso);
+      const circleClass = hasWorkout ? 'done' : iso === todayISO ? 'today' : '';
+      const content = hasWorkout
+        ? '<i data-lucide="check" style="width: 12px; height: 12px;"></i>'
+        : iso === todayISO
+          ? '<i></i>'
+          : '';
+      return `
+        <div class="streak-day">
+          <span>${letter}</span>
+          <div class="streak-circle ${circleClass}">${content}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Gráfico da semana
+  const chart = document.getElementById('weekChart');
+  if (chart) {
+    chart.innerHTML = weekDates.map(iso => {
+      const count = history.filter(item => item.data === iso).length;
+      const height = 14 + Math.min(count, 3) * 18;
+      const classes = 'week-bar'
+        + (count > 0 ? ' has-workout' : '')
+        + (iso === todayISO ? ' is-today' : '');
+      return `<div class="${classes}" style="height: ${height}px"></div>`;
+    }).join('');
+  }
+
+  // Últimos treinos
+  const recent = document.getElementById('recentList');
+  if (recent) {
+    if (history.length === 0) {
+      recent.innerHTML = '<div class="sidebar-empty">Nenhum treino ainda</div>';
+    } else {
+      recent.innerHTML = history.slice(0, 3).map(item => {
+        const date = new Date(`${item.data}T00:00:00`);
+        const total = item.totalExercicios || totalExercises();
+        return `
+          <div class="recent-item">
+            <div class="recent-date">
+              <strong>${String(date.getDate()).padStart(2, '0')}</strong>
+              <span>${MESES_CURTOS[date.getMonth()]}</span>
+            </div>
+            <div class="recent-info">
+              <div class="recent-name">Treino ${escapeHtml(item.treino || '--')}</div>
+              <div class="recent-meta">${escapeHtml(item.diaSemana || getDayName(date))} · ${item.concluidos || 0}/${total}</div>
+            </div>
+            <div class="recent-badge">
+              <i data-lucide="check" style="width: 11px; height: 11px;"></i>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
 }
 
 function startExercise() {
@@ -324,6 +614,7 @@ function startExercise() {
   timers.exercise = setInterval(() => {
     currentState.exerciseTimer++;
     document.getElementById('mainTimer').textContent = formatSeconds(currentState.exerciseTimer);
+    updateRing();
     saveCurrentSession();
   }, 1000);
   
@@ -380,6 +671,7 @@ function startRest(duration) {
   timers.rest = setInterval(() => {
     currentState.restTime--;
     document.getElementById('mainTimer').textContent = formatSeconds(currentState.restTime);
+    updateRing();
     
     if (currentState.restTime <= 0) {
       clearInterval(timers.rest);
@@ -510,6 +802,9 @@ function resetCurrentWorkout() {
 
 function renderSidebarHistory() {
   const sidebarHistory = document.getElementById('sidebarHistory');
+  if (!sidebarHistory) return;
+
+  setText('sidebarCount', `${currentState.completedExercises.length}/${totalExercises()}`);
   sidebarHistory.innerHTML = '';
   
   if (currentState.completedExercises.length === 0) {
@@ -521,8 +816,14 @@ function renderSidebarHistory() {
     const item = document.createElement('div');
     item.className = 'sidebar-history-item';
     item.innerHTML = `
-      <div class="sidebar-history-name">${ex.nome}</div>
-      <div class="sidebar-history-meta">R${ex.round} • ${formatSeconds(ex.time)} • ${ex.meta}</div>
+      <div class="history-check">
+        <i data-lucide="check" style="width: 10px; height: 10px;"></i>
+      </div>
+      <div class="history-body">
+        <div class="sidebar-history-name">${escapeHtml(ex.nome)}</div>
+        <div class="sidebar-history-meta">R${ex.round} · ${escapeHtml(ex.meta || '')}</div>
+      </div>
+      <div class="sidebar-history-time">${formatSeconds(ex.time)}</div>
     `;
     sidebarHistory.appendChild(item);
   });

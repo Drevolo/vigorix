@@ -21,6 +21,20 @@ function drainPendingPush() {
 function setStatus(text) {
   const el = document.getElementById('syncStatus');
   if (el) el.textContent = text;
+
+  // Pill compacta do topo (mobile)
+  const pill = document.getElementById('syncPillText');
+  if (pill) pill.textContent = text;
+
+  const dot = document.querySelector('.status-dot');
+  if (dot) {
+    let color = 'var(--success)';
+    if (/erro/i.test(text)) color = 'var(--danger)';
+    else if (/offline|não logado|falha/i.test(text)) color = 'var(--warning)';
+    else if (/sincronizando|salvando/i.test(text)) color = 'var(--cyan)';
+    dot.style.background = color;
+    dot.style.boxShadow = `0 0 8px ${color}`;
+  }
 }
 
 function getTime() {
