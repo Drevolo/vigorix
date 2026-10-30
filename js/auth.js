@@ -1,9 +1,21 @@
 import { supabase } from './supabase-client.js';
 
+const SESSION_KEY = 'vigorix_sb_session';
 const USER_KEY = 'vigorix_sb_user';
 
+function markLoggedIn(user) {
+  localStorage.setItem(SESSION_KEY, '1');
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
+}
+
+/**
+ * Sessão salva no aparelho. Fechar o navegador/app NÃO desloga:
+ * o Supabase guarda a sessão no localStorage e renova o token sozinho.
+ */
 export function isLoggedIn() {
-  return !!localStorage.getItem('vigorix_sb_session');
+  return localStorage.getItem(SESSION_KEY) === '1';
 }
 
 export function getUser() {
@@ -15,17 +27,20 @@ export function getUser() {
   }
 }
 
+/**
+ * Lê a sessão que o supabase-js já mantém no localStorage.
+ * Nunca apaga a sessão local: só o botão "Sair" faz isso.
+ */
 export async function getSession() {
-  const { data } = await supabase.auth.getSession();
-  if (data.session) {
-    localStorage.setItem('vigorix_sb_session', '1');
-    if (data.session.user) {
-      localStorage.setItem(USER_KEY, JSON.stringify(data.session.user));
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data && data.session) {
+      markLoggedIn(data.session.user);
+      return data.session;
     }
-    return data.session;
+  } catch (e) {
+    console.warn('[AUTH] Não foi possível ler a sessão:', e);
   }
-  localStorage.removeItem('vigorix_sb_session');
-  localStorage.removeItem(USER_KEY);
   return null;
 }
 
@@ -36,34 +51,30 @@ export async function login(email, password) {
   });
 
   if (error) throw new Error(error.message || 'Falha no login');
-  if (data.session) {
-    localStorage.setItem('vigorix_sb_session', '1');
-    if (data.user) {
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-    }
-  }
+  markLoggedIn(data.user);
   return data;
 }
 
 export async function logout() {
-  await supabase.auth.signOut();
-  localStorage.removeItem('vigorix_sb_session');
+  try {
+    // scope local: encerra só este aparelho, sem derrubar as outras sessões
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch (e) {
+    console.warn('[AUTH] Falha ao encerrar no servidor, saindo localmente:', e);
+  }
+  localStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(USER_KEY);
   window.location.href = 'login.html';
 }
 
 export async function requireAuth() {
-  try {
-    const session = await getSession();
-    if (session) return true;
-  } catch (e) {
-    // Sem internet: confia no que está salvo no aparelho (modo offline do PWA)
-    console.warn('[AUTH] Não foi possível validar a sessão:', e);
-  }
+  // A sessão salva no aparelho é a fonte de verdade — sem revalidar token a cada entrada.
+  if (isLoggedIn()) return true;
 
-  if (!isLoggedIn()) {
-    window.location.href = 'login.html';
-    return false;
-  }
-  return true;
+  // Primeira entrada após uma atualização do app: tenta recuperar a sessão já salva pelo Supabase.
+  const session = await getSession();
+  if (session) return true;
+
+  window.location.href = 'login.html';
+  return false;
 }
