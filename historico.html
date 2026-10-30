@@ -3,28 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0f1026">
+  <meta name="theme-color" content="#08080a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Vigorix">
-  
+
   <title>Histórico - Vigorix</title>
-  
+
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-  
-  <script src="https://cdn.tailwindcss.com"></script>
+
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-  
-  <link rel="stylesheet" href="css/style.css">
+
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages/history.css">
   <link rel="stylesheet" href="css/animations.css">
 </head>
 <body>
-  <!-- Header -->
   <header class="header">
     <div class="header-content">
-      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
-        <a href="index.html" style="color: var(--text-primary); text-decoration: none;">
+      <div class="history-top">
+        <a href="index.html" class="history-back" aria-label="Voltar ao treino">
           <i data-lucide="arrow-left"></i>
         </a>
         <div class="logo">Histórico</div>
@@ -35,9 +35,7 @@
     </div>
   </header>
 
-  <!-- Main Container -->
   <main class="container">
-    <!-- Stats -->
     <section class="history-stats">
       <div class="stat-card">
         <div class="stat-value" id="statTotal">0</div>
@@ -49,31 +47,28 @@
       </div>
     </section>
 
-    <!-- View Toggle -->
     <section class="history-filters">
       <button class="filter-btn active" data-view="calendario">Calendário</button>
       <button class="filter-btn" data-view="lista">Lista</button>
     </section>
 
-    <!-- Filters -->
-    <section class="history-filters" id="filterRow">
+    <section class="history-filters" id="filterRow" style="display: none;">
       <button class="filter-btn active" data-filter="todos">Todos</button>
       <button class="filter-btn" data-filter="hoje">Hoje</button>
       <button class="filter-btn" data-filter="7dias">Últimos 7 dias</button>
     </section>
 
-    <!-- Calendar View -->
-    <section id="calendarView">
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
-        <button class="btn btn-secondary" id="calPrev" style="width: auto; padding: 0.5rem 0.75rem;">
-          <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
+    <section id="calendarView" class="calendar">
+      <div class="calendar-nav">
+        <button class="btn btn-secondary calendar-nav-btn" id="calPrev" aria-label="Mês anterior">
+          <i data-lucide="chevron-left" class="icon-16"></i>
         </button>
-        <div id="calMonthLabel" style="font-weight: 500; letter-spacing: -0.01em;"></div>
-        <button class="btn btn-secondary" id="calNext" style="width: auto; padding: 0.5rem 0.75rem;">
-          <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+        <div id="calMonthLabel" class="calendar-month"></div>
+        <button class="btn btn-secondary calendar-nav-btn" id="calNext" aria-label="Próximo mês">
+          <i data-lucide="chevron-right" class="icon-16"></i>
         </button>
       </div>
-      <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.375rem; margin-bottom: 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-secondary);">
+      <div class="calendar-weekdays">
         <div>Dom</div>
         <div>Seg</div>
         <div>Ter</div>
@@ -82,27 +77,24 @@
         <div>Sex</div>
         <div>Sáb</div>
       </div>
-      <div id="calendarGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.375rem;"></div>
-      <div style="margin-top: 1rem; font-size: 0.8125rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem;">
-        <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); display: inline-block;"></span>
+      <div id="calendarGrid" class="calendar-grid"></div>
+      <div class="calendar-legend">
+        <span class="calendar-legend-dot"></span>
         <span>Dia com treino concluído</span>
       </div>
     </section>
 
-    <!-- History List -->
     <section class="history-list" id="historyList" style="display: none;">
       <!-- Histórico será gerado pelo JavaScript -->
     </section>
 
-    <!-- Empty State -->
     <div id="emptyState" class="empty-state" style="display: none;">
       <div class="empty-state-icon">· · ·</div>
-      <div style="font-size: 0.9375rem; margin-bottom: 0.25rem;">Nenhum treino registrado ainda</div>
-      <div style="font-size: 0.8125rem;">Complete seu primeiro treino para vê-lo aqui</div>
+      <div class="empty-state-title">Nenhum treino registrado ainda</div>
+      <div class="empty-state-text">Complete seu primeiro treino para vê-lo aqui</div>
     </div>
   </main>
 
-  <!-- Modal Detalhes -->
   <div id="detailModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -115,23 +107,6 @@
     </div>
   </div>
 
-  <script type="module">
-    import { requireAuth } from './js/auth.js';
-    import { syncNow } from './js/sync.js';
-
-    if (await requireAuth()) {
-      await Promise.race([
-        syncNow(),
-        new Promise(resolve => setTimeout(resolve, 4000))
-      ]);
-      await import('./js/history.js');
-    }
-  </script>
-  <script>
-    if (window.lucide) lucide.createIcons();
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(console.error);
-    }
-  </script>
+  <script type="module" src="js/pages/history.js"></script>
 </body>
 </html>

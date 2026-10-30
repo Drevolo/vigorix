@@ -1,42 +1,22 @@
-import { storageGet, STORAGE_KEYS, getTodayISO } from './utils.js';
+// Entrada da página de histórico.
+import { getTodayISO } from '../core/utils.js';
+import { requireAuth } from '../core/auth.js';
+import { syncNow } from '../core/sync.js';
+import { registerServiceWorker } from '../core/pwa.js';
+import {
+  readNormalizedHistory,
+  sortHistory
+} from '../core/history.js';
+import { escapeHtml, refreshIcons } from '../ui/dom.js';
 
 let currentFilter = 'todos';
 let currentView = 'calendario';
 let calendarDate = new Date();
 
-// Registros antigos não tinham `detalhes`/`concluidos`; normaliza na leitura.
-function normalizeRecord(item) {
-  const registro = { ...item };
-  const exercises = Array.isArray(registro.exercises) ? registro.exercises : [];
-
-  if (registro.concluidos === undefined) registro.concluidos = exercises.length;
-  if (registro.totalExercicios === undefined) registro.totalExercicios = exercises.length;
-  if (registro.finalizadoEm === undefined) registro.finalizadoEm = registro.completedAt;
-  if (registro.semana === undefined) registro.semana = '—';
-
-  if (!registro.detalhes && exercises.length > 0) {
-    const rodadas = new Map();
-    exercises.forEach(ex => {
-      const numero = ex.round || 1;
-      if (!rodadas.has(numero)) rodadas.set(numero, { numero, exercicios: [] });
-      rodadas.get(numero).exercicios.push({
-        nome: ex.nome,
-        meta: ex.meta,
-        feito: true,
-        time: ex.time
-      });
-    });
-    registro.detalhes = [...rodadas.values()].sort((a, b) => a.numero - b.numero);
-  }
-
-  return registro;
-}
-
-function readHistory() {
-  const bruto = storageGet(STORAGE_KEYS.HISTORY, []);
-  const lista = Array.isArray(bruto) ? bruto : [];
-  return lista.map(normalizeRecord);
-}
+const MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
 
 function init() {
   // View toggle
@@ -52,7 +32,7 @@ function init() {
       render();
     });
   });
-  
+
   // Filtros
   document.querySelectorAll('[data-filter]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -62,7 +42,7 @@ function init() {
       render();
     });
   });
-  
+
   // Calendar nav
   document.getElementById('calPrev').addEventListener('click', () => {
     calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1);
@@ -72,115 +52,99 @@ function init() {
     calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1);
     renderCalendar();
   });
-  
+
   // Modal
   document.getElementById('detailClose').addEventListener('click', () => {
     document.getElementById('detailModal').classList.remove('active');
   });
-  
+
   document.getElementById('detailModal').addEventListener('click', (e) => {
     if (e.target.id === 'detailModal') {
       document.getElementById('detailModal').classList.remove('active');
     }
   });
-  
+
   // Quando o sync trouxer dados de outro aparelho, atualiza a tela
   window.addEventListener('vigorix:synced', render);
-  
+
   render();
+  refreshIcons();
 }
 
 function render() {
-  const history = readHistory();
-  
+  const history = readNormalizedHistory();
+
   // Estatísticas
   document.getElementById('statTotal').textContent = history.length;
   const diasUnicos = new Set(history.map(h => h.data)).size;
   document.getElementById('statDias').textContent = diasUnicos;
-  
+
   if (currentView === 'calendario') {
     renderCalendar();
     document.getElementById('emptyState').style.display = 'none';
   } else {
     renderList(history);
   }
-  
-  if (window.lucide) window.lucide.createIcons();
+
+  refreshIcons();
 }
 
 function renderCalendar() {
-  const history = readHistory();
+  const history = readNormalizedHistory();
   const historyDates = new Set(history.map(h => h.data));
   const grid = document.getElementById('calendarGrid');
   const label = document.getElementById('calMonthLabel');
   const today = getTodayISO();
-  
+
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
-  
-  const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-  label.textContent = `${meses[month]} ${year}`;
-  
+
+  label.textContent = `${MESES[month]} ${year}`;
   grid.innerHTML = '';
-  
+
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const startWeekday = firstDay.getDay(); // 0 Domingo
   const daysInMonth = lastDay.getDate();
-  
+
   // Dias vazios antes do primeiro dia
   for (let i = 0; i < startWeekday; i++) {
     const empty = document.createElement('div');
-    empty.style.height = '2.75rem';
+    empty.className = 'calendar-day is-empty';
     grid.appendChild(empty);
   }
-  
+
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const hasTreino = historyDates.has(dateStr);
     const isToday = dateStr === today;
-    
+
     const dayEl = document.createElement('button');
-    dayEl.style.height = '2.75rem';
-    dayEl.style.borderRadius = '0.5rem';
-    dayEl.style.border = isToday ? '1px solid var(--primary-accent)' : '1px solid var(--border-subtle)';
-    dayEl.style.background = hasTreino ? 'rgba(245, 245, 247, 0.06)' : 'transparent';
-    dayEl.style.color = hasTreino ? 'var(--text-primary)' : 'var(--text-secondary)';
-    dayEl.style.fontSize = '0.875rem';
-    dayEl.style.cursor = hasTreino ? 'pointer' : 'default';
-    dayEl.style.position = 'relative';
+    dayEl.type = 'button';
+    dayEl.className = 'calendar-day'
+      + (hasTreino ? ' has-workout' : '')
+      + (isToday ? ' is-today' : '');
     dayEl.textContent = day;
-    
+    if (!hasTreino) dayEl.disabled = true;
+
     if (hasTreino) {
       const dot = document.createElement('span');
-      dot.style.position = 'absolute';
-      dot.style.bottom = '4px';
-      dot.style.left = '50%';
-      dot.style.transform = 'translateX(-50%)';
-      dot.style.width = '4px';
-      dot.style.height = '4px';
-      dot.style.borderRadius = '50%';
-      dot.style.background = 'var(--text-primary)';
+      dot.className = 'calendar-dot';
       dayEl.appendChild(dot);
-      
+
       dayEl.addEventListener('click', () => {
         const items = history.filter(h => h.data === dateStr);
-        if (items.length === 1) {
-          showDetails(items[0]);
-        } else if (items.length > 1) {
-          // mostrar primeiro ou criar lista rápida
-          showDetails(items[0]);
-        }
+        if (items.length >= 1) showDetails(items[0]);
       });
     }
-    
+
     grid.appendChild(dayEl);
   }
 }
 
 function renderList(history) {
   const today = getTodayISO();
-  
+
   let filtered = [...history];
   if (currentFilter === 'hoje') {
     filtered = filtered.filter(h => h.data === today);
@@ -190,38 +154,40 @@ function renderList(history) {
     const weekAgoISO = getTodayISO(weekAgo);
     filtered = filtered.filter(h => h.data >= weekAgoISO);
   }
-  
-  filtered.sort((a, b) => b.data.localeCompare(a.data) || (b.finalizadoEm || 0) - (a.finalizadoEm || 0));
-  
+
+  filtered = sortHistory(filtered);
+
   const list = document.getElementById('historyList');
   const empty = document.getElementById('emptyState');
-  
+
   if (filtered.length === 0) {
     list.innerHTML = '';
     empty.style.display = 'block';
     return;
   }
-  
+
   empty.style.display = 'none';
   list.innerHTML = '';
-  
+
   filtered.forEach(item => {
     const dataFormatada = new Date(item.data + 'T00:00:00').toLocaleDateString('pt-BR');
-    const horaFinalizacao = item.finalizadoEm ? new Date(item.finalizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
-    
+    const horaFinalizacao = item.finalizadoEm
+      ? new Date(item.finalizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      : '--:--';
+
     const itemEl = document.createElement('div');
     itemEl.className = 'history-item';
     itemEl.innerHTML = `
       <div class="history-item-header">
-        <div class="history-item-date">${dataFormatada} • ${item.diaSemana}</div>
-        <div class="history-item-badge">Treino ${item.treino}</div>
+        <div class="history-item-date">${escapeHtml(dataFormatada)} • ${escapeHtml(item.diaSemana || '')}</div>
+        <div class="history-item-badge">Treino ${escapeHtml(item.treino || '--')}</div>
       </div>
       <div class="history-item-info">
-        <span>${item.semana}</span>
+        <span>${escapeHtml(item.semana || '—')}</span>
         <span>•</span>
-        <span>${item.concluidos}/${item.totalExercicios}</span>
+        <span>${item.concluidos || 0}/${item.totalExercicios || 0}</span>
         <span>•</span>
-        <span>${horaFinalizacao}</span>
+        <span>${escapeHtml(horaFinalizacao)}</span>
       </div>
     `;
     itemEl.addEventListener('click', () => showDetails(item));
@@ -233,34 +199,36 @@ function showDetails(item) {
   const modal = document.getElementById('detailModal');
   const content = document.getElementById('detailContent');
   const dataFormatada = new Date(item.data + 'T00:00:00').toLocaleDateString('pt-BR');
-  const horaFinalizacao = item.finalizadoEm ? new Date(item.finalizadoEm).toLocaleString('pt-BR') : '--';
-  
+  const horaFinalizacao = item.finalizadoEm
+    ? new Date(item.finalizadoEm).toLocaleString('pt-BR')
+    : '--';
+
   let detalhesHtml = `
-    <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);">
-      <div style="font-weight: 500; margin-bottom: 0.5rem; letter-spacing: -0.01em;">${dataFormatada} • ${item.diaSemana}</div>
-      <div style="font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.9;">
-        <div>Treino <span style="color: var(--text-primary);">A/B</span>: <strong style="color: var(--text-primary);">${item.treino}</strong></div>
-        <div>Semana: <strong style="color: var(--text-primary);">${item.semana}</strong></div>
-        <div>Exercícios: <strong style="color: var(--text-primary);">${item.concluidos}/${item.totalExercicios}</strong></div>
-        <div>Finalizado: <strong style="color: var(--text-primary);">${horaFinalizacao}</strong></div>
+    <div class="detail-head">
+      <div class="detail-title">${escapeHtml(dataFormatada)} • ${escapeHtml(item.diaSemana || '')}</div>
+      <div class="detail-meta">
+        <div>Treino A/B: <strong>${escapeHtml(item.treino || '--')}</strong></div>
+        <div>Semana: <strong>${escapeHtml(item.semana || '—')}</strong></div>
+        <div>Exercícios: <strong>${item.concluidos || 0}/${item.totalExercicios || 0}</strong></div>
+        <div>Finalizado: <strong>${escapeHtml(horaFinalizacao)}</strong></div>
       </div>
     </div>
   `;
-  
+
   if (item.detalhes) {
     item.detalhes.forEach(rodada => {
       detalhesHtml += `
-        <div style="margin-bottom: 1rem;">
-          <div style="font-weight: 500; margin-bottom: 0.5rem; color: var(--text-secondary); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.08em;">Rodada ${rodada.numero}</div>
-          <div style="display: flex; flex-direction: column; gap: 0.375rem;">
+        <div class="detail-round">
+          <div class="detail-round-title">Rodada ${rodada.numero}</div>
+          <div class="detail-list">
       `;
       rodada.exercicios.forEach(ex => {
         detalhesHtml += `
-          <div style="padding: 0.625rem 0.75rem; background: transparent; border: 1px solid var(--border-subtle); border-radius: 0.5rem; font-size: 0.8125rem; display: flex; align-items: center; gap: 0.625rem;">
-            <span style="color: ${ex.feito ? 'var(--success)' : 'var(--text-secondary)'};">${ex.feito ? '●' : '○'}</span>
-            <div style="flex: 1; ${ex.feito ? 'opacity: 0.6;' : ''}">
-              <div style="${ex.feito ? 'text-decoration: line-through;' : ''}">${ex.nome}</div>
-              <div style="color: var(--text-secondary); font-size: 0.75rem;">${ex.meta}</div>
+          <div class="detail-exercise${ex.feito ? ' is-done' : ''}">
+            <span class="detail-mark">${ex.feito ? '●' : '○'}</span>
+            <div class="detail-body">
+              <div class="detail-name">${escapeHtml(ex.nome)}</div>
+              <div class="detail-exercise-meta">${escapeHtml(ex.meta)}</div>
             </div>
           </div>
         `;
@@ -268,13 +236,28 @@ function showDetails(item) {
       detalhesHtml += `</div></div>`;
     });
   }
-  
+
   content.innerHTML = detalhesHtml;
   modal.classList.add('active');
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', boot);
 } else {
+  boot();
+}
+
+async function boot() {
+  registerServiceWorker();
+
+  if (!(await requireAuth())) return;
+
+  // Se a rede estiver ruim, não segura a tela por mais de 4s
+  await Promise.race([
+    syncNow(),
+    new Promise(resolve => setTimeout(resolve, 4000))
+  ]);
+
   init();
+  refreshIcons();
 }

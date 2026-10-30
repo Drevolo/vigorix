@@ -19,7 +19,10 @@
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/pages/home.css">
   <link rel="stylesheet" href="css/animations.css">
 </head>
 <body class="app-shell">
@@ -331,44 +334,6 @@
     </div>
   </div>
 
-  <script type="module">
-    import { requireAuth, getUser, logout } from './js/auth.js';
-    import { syncNow } from './js/sync.js';
-
-    const autenticado = await requireAuth();
-
-    if (autenticado) {
-      const user = getUser();
-      const email = user && user.email ? user.email : '';
-      const inicial = (email.charAt(0) || 'V').toUpperCase();
-      document.querySelectorAll('#avatarInitial, #avatarInitialTop').forEach(el => {
-        el.textContent = inicial;
-      });
-
-      // Se a rede estiver ruim, não segura a tela por mais de 4s
-      await Promise.race([
-        syncNow(),
-        new Promise(resolve => setTimeout(resolve, 4000))
-      ]);
-
-      await import('./js/app.js');
-
-      const btnSync = document.getElementById('btnSyncNow');
-      const btnLogout = document.getElementById('btnLogout');
-
-      if (btnSync) {
-        btnSync.addEventListener('click', () => syncNow());
-      }
-      if (btnLogout) {
-        btnLogout.addEventListener('click', logout);
-      }
-    }
-  </script>
-  <script>
-    if (window.lucide) lucide.createIcons();
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(console.error);
-    }
-  </script>
+  <script type="module" src="js/pages/home.js"></script>
 </body>
 </html>

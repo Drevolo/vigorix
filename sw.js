@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vigorix-v6';
+const CACHE_NAME = 'vigorix-v7';
 
 const PRECACHE = [
   './',
@@ -6,18 +6,39 @@ const PRECACHE = [
   './historico.html',
   './login.html',
   './manifest.json',
-  './css/style.css',
+
+  './css/base.css',
+  './css/components.css',
+  './css/layout.css',
+  './css/pages/home.css',
+  './css/pages/history.css',
+  './css/pages/login.css',
   './css/animations.css',
-  './js/data.js',
-  './js/utils.js',
-  './js/app.js',
-  './js/timer.js',
-  './js/history.js',
-  './js/supabase-config.js',
-  './js/supabase-client.js',
-  './js/auth.js',
-  './js/api.js',
-  './js/sync.js',
+
+  './js/core/config.js',
+  './js/core/supabase-client.js',
+  './js/core/utils.js',
+  './js/core/data.js',
+  './js/core/auth.js',
+  './js/core/api.js',
+  './js/core/sync.js',
+  './js/core/history.js',
+  './js/core/pwa.js',
+
+  './js/workout/state.js',
+  './js/workout/stats.js',
+  './js/workout/actions.js',
+
+  './js/ui/dom.js',
+  './js/ui/workout-view.js',
+  './js/ui/dashboard-view.js',
+  './js/ui/edit-modal.js',
+  './js/ui/sidebar.js',
+
+  './js/pages/home.js',
+  './js/pages/history.js',
+  './js/pages/login.js',
+
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
 ];

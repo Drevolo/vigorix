@@ -1,6 +1,7 @@
 import { STORAGE_KEYS, storageGet, storageSet, getLocalUpdatedAt, setLocalUpdatedAt } from './utils.js';
 import { isLoggedIn } from './auth.js';
 import { listMyStore, upsertStoreRecord } from './api.js';
+import { mergeHistory, sortHistory } from './history.js';
 
 const SYNC_KEYS = [
   STORAGE_KEYS.CURRENT,
@@ -42,35 +43,8 @@ function getTime() {
   return now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function sortHistory(list) {
-  return [...list].sort((a, b) => {
-    const dataA = String(a && a.data ? a.data : '');
-    const dataB = String(b && b.data ? b.data : '');
-    if (dataA !== dataB) return dataB.localeCompare(dataA);
-    const tempoA = (a && (a.completedAt || a.finalizadoEm)) || 0;
-    const tempoB = (b && (b.completedAt || b.finalizadoEm)) || 0;
-    if (tempoA !== tempoB) return tempoB - tempoA;
-    return String(a && a.id).localeCompare(String(b && b.id));
-  });
-}
-
 // União por id: nunca perde treino feito em outro aparelho.
-function mergeHistory(localList, remoteList) {
-  const porId = new Map();
-  [...remoteList, ...localList].forEach(item => {
-    if (!item || !item.id) return;
-    const anterior = porId.get(item.id);
-    if (!anterior) {
-      porId.set(item.id, item);
-      return;
-    }
-    const tempoAnterior = anterior.completedAt || anterior.finalizadoEm || 0;
-    const tempoAtual = item.completedAt || item.finalizadoEm || 0;
-    if (tempoAtual >= tempoAnterior) porId.set(item.id, item);
-  });
-  return sortHistory([...porId.values()]);
-}
-
+// (implementação em core/history.js)
 function remoteIsNewer(remote, localUpdatedAt) {
   if (!localUpdatedAt) return true;
   const remoto = Date.parse(remote && remote.updated_at) || 0;
