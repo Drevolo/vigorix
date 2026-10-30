@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vigorix-v5';
+const CACHE_NAME = 'vigorix-v6';
 
 const PRECACHE = [
   './',
